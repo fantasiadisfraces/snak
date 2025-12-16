@@ -1,10 +1,9 @@
 // ==================== CONFIGURACIÓN ====================
-const CONFIG = {
-    GOOGLE_SHEET_ID: '1AmFocVwvywXz6LOwggkFscXjEhx_FZvZCVmb-1ihm5I',
-    CLIENT_ID: '488089624210-ns62tr4g9rqov3k2b85965c4p4fto028.apps.googleusercontent.com',
-    API_KEY: 'AIzaSyDsIk-N9hDAzZN7vc9b2rUIhcA7D8ViOFk',
-    SCOPES: 'https://www.googleapis.com/auth/spreadsheets'
-};
+const CLIENT_ID = CONFIG.CLIENT_ID;
+const API_KEY = CONFIG.API_KEY;
+const SPREADSHEET_ID = CONFIG.GOOGLE_SHEET_ID;
+const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';;
 
 // ==================== PRODUCTOS ====================
 const PRODUCTS = {
