@@ -6,9 +6,6 @@
     <title>Sistema de Caja - Restaurante</title>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Bebas+Neue&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://apis.google.com/js/api.js"></script>
-    <script src="https://accounts.google.com/gsi/client"></script>
-    <script src="config.js"></script>
     <style>
         * {
             margin: 0;
@@ -947,6 +944,16 @@
             color: white;
         }
 
+        .export-btn.setup {
+            border-color: var(--purple);
+            color: var(--purple);
+        }
+
+        .export-btn.setup:hover {
+            background: var(--purple);
+            color: white;
+        }
+
         .no-data {
             text-align: center;
             padding: 50px 20px;
@@ -997,7 +1004,7 @@
             display: none;
             animation: slideUp 0.3s ease;
             font-weight: 600;
-            max-width: 350px;
+            max-width: 400px;
         }
 
         .toast.error { background: var(--danger); }
@@ -1044,6 +1051,34 @@
             font-weight: 600;
             color: var(--text);
             font-size: 1.1rem;
+        }
+
+        /* Info Box */
+        .info-box {
+            background: linear-gradient(145deg, #e3f2fd 0%, #bbdefb 100%);
+            border: 3px solid #2196f3;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h4 {
+            color: #1565c0;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .info-box p {
+            color: #1976d2;
+            font-size: 0.95rem;
+            margin: 5px 0;
+        }
+
+        .info-box code {
+            background: rgba(255,255,255,0.7);
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-family: monospace;
         }
 
         @media print {
@@ -1211,7 +1246,8 @@
             <div class="table-card">
                 <h3>📋 Historial de Ventas</h3>
                 <div class="export-btns" style="margin-bottom: 20px;">
-                    <button class="export-btn sync" onclick="syncFromGoogleSheets()">🔄 Sincronizar desde Google</button>
+                    <button class="export-btn setup" onclick="setupGoogleSheet()">⚙️ Configurar Hoja</button>
+                    <button class="export-btn sync" onclick="syncFromGoogleSheets()">🔄 Sincronizar</button>
                     <button class="export-btn" onclick="exportToCSV()">📥 Exportar CSV</button>
                 </div>
                 <table class="data-table">
@@ -1330,11 +1366,18 @@
 
     <script>
         // ==================== CONFIGURACIÓN ====================
+        const CONFIG = {
+            GOOGLE_SHEET_ID: '1AmFocVwvywXz6LOwggkFscXjEhx_FZvZCVmb-1ihm5I',
+            CLIENT_ID: '488089624210-ns62tr4g9rqov3k2b85965c4p4fto028.apps.googleusercontent.com',
+            API_KEY: 'AIzaSyDsIk-N9hDAzZN7vc9b2rUIhcA7D8ViOFk'
+        };
+
         const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
         let tokenClient;
         let gapiInited = false;
         let gisInited = false;
         let isGoogleConnected = false;
+        let sheetId = null; // ID numérico de la hoja "Ventas"
 
         // ==================== PRODUCTOS ====================
         const products = {
@@ -1395,8 +1438,10 @@
                 });
                 gapiInited = true;
                 maybeEnableButtons();
+                console.log('GAPI inicializado correctamente');
             } catch (err) {
                 console.error('Error inicializando GAPI:', err);
+                showToast('Error inicializando Google API', 'error');
             }
         }
 
@@ -1408,16 +1453,30 @@
             });
             gisInited = true;
             maybeEnableButtons();
+            console.log('GIS inicializado correctamente');
         }
 
         function maybeEnableButtons() {
             if (gapiInited && gisInited) {
-                // Verificar si hay token guardado
                 const savedToken = localStorage.getItem('googleAccessToken');
                 if (savedToken) {
                     gapi.client.setToken({ access_token: savedToken });
-                    updateGoogleStatus(true);
+                    // Verificar si el token aún es válido
+                    verifyToken();
                 }
+            }
+        }
+
+        async function verifyToken() {
+            try {
+                await gapi.client.sheets.spreadsheets.get({
+                    spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
+                });
+                updateGoogleStatus(true);
+            } catch (error) {
+                console.log('Token expirado o inválido');
+                localStorage.removeItem('googleAccessToken');
+                updateGoogleStatus(false);
             }
         }
 
@@ -1436,15 +1495,13 @@
                 // Conectar
                 tokenClient.callback = async (resp) => {
                     if (resp.error !== undefined) {
-                        showToast('Error al conectar con Google', 'error');
+                        console.error('Error de autenticación:', resp);
+                        showToast('Error al conectar con Google: ' + resp.error, 'error');
                         return;
                     }
                     localStorage.setItem('googleAccessToken', resp.access_token);
                     updateGoogleStatus(true);
                     showToast('¡Conectado a Google Sheets!', 'success');
-                    
-                    // Verificar/crear estructura de la hoja
-                    await ensureSheetStructure();
                 };
 
                 if (gapi.client.getToken() === null) {
@@ -1474,41 +1531,31 @@
             }
         }
 
-        // Asegurar que la hoja tenga la estructura correcta
-        async function ensureSheetStructure() {
+        // Configurar la hoja de Google Sheets
+        async function setupGoogleSheet() {
+            if (!isGoogleConnected) {
+                showToast('Primero conecta tu cuenta de Google', 'warning');
+                return;
+            }
+
             try {
-                showLoading('Verificando hoja de cálculo...');
+                showLoading('Configurando hoja de cálculo...');
                 
-                // Intentar leer la primera fila para ver si hay encabezados
-                const response = await gapi.client.sheets.spreadsheets.values.get({
+                // Obtener información del spreadsheet
+                const spreadsheet = await gapi.client.sheets.spreadsheets.get({
                     spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-                    range: 'Ventas!A1:K1',
                 });
 
-                const values = response.result.values;
-                
-                // Si no hay datos o los encabezados no coinciden, crear estructura
-                if (!values || values.length === 0 || values[0][0] !== 'ID_Pedido') {
-                    await createSheetStructure();
-                }
-                
-                hideLoading();
-            } catch (error) {
-                console.error('Error verificando estructura:', error);
-                // Si la hoja no existe, crearla
-                if (error.result?.error?.code === 400) {
-                    await createSheetStructure();
-                }
-                hideLoading();
-            }
-        }
+                console.log('Spreadsheet info:', spreadsheet.result);
 
-        // Crear estructura de la hoja
-        async function createSheetStructure() {
-            try {
-                // Primero, intentar crear la hoja "Ventas" si no existe
-                try {
-                    await gapi.client.sheets.spreadsheets.batchUpdate({
+                // Buscar si existe la hoja "Ventas"
+                const sheets = spreadsheet.result.sheets || [];
+                let ventasSheet = sheets.find(s => s.properties.title === 'Ventas');
+
+                if (!ventasSheet) {
+                    // Crear la hoja "Ventas"
+                    console.log('Creando hoja "Ventas"...');
+                    const addSheetResponse = await gapi.client.sheets.spreadsheets.batchUpdate({
                         spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
                         resource: {
                             requests: [{
@@ -1520,8 +1567,12 @@
                             }]
                         }
                     });
-                } catch (e) {
-                    // La hoja ya existe, continuar
+                    
+                    sheetId = addSheetResponse.result.replies[0].addSheet.properties.sheetId;
+                    showToast('Hoja "Ventas" creada', 'success');
+                } else {
+                    sheetId = ventasSheet.properties.sheetId;
+                    console.log('Hoja "Ventas" encontrada, ID:', sheetId);
                 }
 
                 // Crear encabezados
@@ -1536,7 +1587,7 @@
                     resource: { values: headers }
                 });
 
-                // Formatear encabezados
+                // Formatear encabezados (color naranja, texto blanco, negrita)
                 await gapi.client.sheets.spreadsheets.batchUpdate({
                     spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
                     resource: {
@@ -1544,36 +1595,60 @@
                             {
                                 repeatCell: {
                                     range: {
-                                        sheetId: 0,
+                                        sheetId: sheetId,
                                         startRowIndex: 0,
-                                        endRowIndex: 1
+                                        endRowIndex: 1,
+                                        startColumnIndex: 0,
+                                        endColumnIndex: 11
                                     },
                                     cell: {
                                         userEnteredFormat: {
-                                            backgroundColor: { red: 1, green: 0.6, blue: 0 },
-                                            textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } }
+                                            backgroundColor: { red: 1, green: 0.435, blue: 0 },
+                                            textFormat: { 
+                                                bold: true, 
+                                                foregroundColor: { red: 1, green: 1, blue: 1 } 
+                                            },
+                                            horizontalAlignment: 'CENTER'
                                         }
                                     },
-                                    fields: 'userEnteredFormat(backgroundColor,textFormat)'
+                                    fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)'
                                 }
                             },
                             {
                                 updateSheetProperties: {
                                     properties: {
-                                        sheetId: 0,
+                                        sheetId: sheetId,
                                         gridProperties: { frozenRowCount: 1 }
                                     },
                                     fields: 'gridProperties.frozenRowCount'
+                                }
+                            },
+                            {
+                                autoResizeDimensions: {
+                                    dimensions: {
+                                        sheetId: sheetId,
+                                        dimension: 'COLUMNS',
+                                        startIndex: 0,
+                                        endIndex: 11
+                                    }
                                 }
                             }
                         ]
                     }
                 });
 
-                showToast('Hoja de cálculo configurada correctamente', 'success');
+                hideLoading();
+                showToast('¡Hoja configurada correctamente!', 'success');
+                
             } catch (error) {
-                console.error('Error creando estructura:', error);
-                showToast('Error configurando la hoja', 'error');
+                console.error('Error configurando hoja:', error);
+                hideLoading();
+                
+                let errorMsg = 'Error configurando la hoja';
+                if (error.result?.error?.message) {
+                    errorMsg += ': ' + error.result.error.message;
+                }
+                showToast(errorMsg, 'error');
             }
         }
 
@@ -1612,6 +1687,7 @@
                     resource: { values: [row] }
                 });
 
+                console.log('Venta guardada en Google Sheets');
                 return true;
             } catch (error) {
                 console.error('Error guardando en Google Sheets:', error);
@@ -1629,40 +1705,87 @@
             try {
                 showLoading('Sincronizando datos...');
 
+                // Primero verificar que la hoja existe
+                const spreadsheet = await gapi.client.sheets.spreadsheets.get({
+                    spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
+                });
+
+                const sheets = spreadsheet.result.sheets || [];
+                const ventasSheet = sheets.find(s => s.properties.title === 'Ventas');
+
+                if (!ventasSheet) {
+                    hideLoading();
+                    showToast('No existe la hoja "Ventas". Click en "⚙️ Configurar Hoja" primero.', 'warning');
+                    return;
+                }
+
+                // Leer datos
                 const response = await gapi.client.sheets.spreadsheets.values.get({
                     spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-                    range: 'Ventas!A2:K',
+                    range: 'Ventas!A2:K1000',
                 });
 
                 const rows = response.result.values || [];
-                
+                console.log('Filas obtenidas:', rows.length);
+
+                if (rows.length === 0) {
+                    hideLoading();
+                    showToast('La hoja está vacía. Realiza algunas ventas primero.', 'warning');
+                    updateStats();
+                    return;
+                }
+
                 // Convertir filas a formato de salesHistory
                 salesHistory = rows.map(row => {
-                    const productos = row[3]?.split(', ') || [];
-                    const acompañamientos = row[4]?.split(', ') || [];
-                    const cantidades = row[5]?.split(', ').map(Number) || [];
-                    const categorias = row[6]?.split(', ') || [];
-                    const subtotales = row[7]?.split(', ').map(Number) || [];
+                    const productos = (row[3] || '').split(', ').filter(p => p);
+                    const acompañamientos = (row[4] || '').split(', ');
+                    const cantidades = (row[5] || '').split(', ').map(n => parseInt(n) || 1);
+                    const categorias = (row[6] || '').split(', ');
+                    const subtotales = (row[7] || '').split(', ').map(n => parseFloat(n) || 0);
 
                     const items = productos.map((name, i) => ({
                         name: name,
                         side: acompañamientos[i] !== '-' ? acompañamientos[i] : null,
                         quantity: cantidades[i] || 1,
                         category: categorias[i] || 'otros',
-                        price: subtotales[i] ? subtotales[i] / (cantidades[i] || 1) : 0
+                        price: cantidades[i] ? subtotales[i] / cantidades[i] : 0
                     }));
+
+                    // Parsear fecha
+                    let dateStr = row[1] || '';
+                    let timeStr = row[2] || '';
+                    let timestamp;
+                    
+                    try {
+                        // Intentar diferentes formatos de fecha
+                        if (dateStr.includes('/')) {
+                            const parts = dateStr.split('/');
+                            if (parts.length === 3) {
+                                // DD/MM/YYYY
+                                timestamp = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${timeStr || '00:00:00'}`);
+                            }
+                        } else {
+                            timestamp = new Date(`${dateStr}T${timeStr || '00:00:00'}`);
+                        }
+                        
+                        if (isNaN(timestamp.getTime())) {
+                            timestamp = new Date();
+                        }
+                    } catch (e) {
+                        timestamp = new Date();
+                    }
 
                     return {
                         orderNumber: parseInt(row[0]) || 0,
-                        date: row[1] || '',
-                        time: row[2] || '',
+                        date: dateStr,
+                        time: timeStr,
                         items: items,
                         total: parseFloat(row[8]) || 0,
                         received: parseFloat(row[9]) || 0,
                         change: parseFloat(row[10]) || 0,
-                        timestamp: new Date(`${row[1]} ${row[2]}`).toISOString()
+                        timestamp: timestamp.toISOString()
                     };
-                });
+                }).filter(sale => sale.orderNumber > 0);
 
                 // Actualizar número de orden
                 if (salesHistory.length > 0) {
@@ -1674,11 +1797,20 @@
                 saveSalesHistory();
                 updateStats();
                 hideLoading();
-                showToast(`Sincronizado: ${rows.length} ventas`, 'success');
+                showToast(`✅ Sincronizado: ${salesHistory.length} ventas`, 'success');
+                
             } catch (error) {
                 console.error('Error sincronizando:', error);
                 hideLoading();
-                showToast('Error al sincronizar', 'error');
+                
+                let errorMsg = 'Error al sincronizar';
+                if (error.result?.error?.message) {
+                    errorMsg += ': ' + error.result.error.message;
+                } else if (error.message) {
+                    errorMsg += ': ' + error.message;
+                }
+                
+                showToast(errorMsg, 'error');
             }
         }
 
@@ -1702,7 +1834,7 @@
 
             setTimeout(() => {
                 toast.classList.remove('show');
-            }, 3000);
+            }, 4000);
         }
 
         function showLoading(text = 'Procesando...') {
@@ -1724,6 +1856,9 @@
             initDateFilters();
             
             document.getElementById('btnClear').addEventListener('click', clearCart);
+            
+            // Cargar estadísticas iniciales
+            updateStats();
         }
 
         function showSection(section) {
@@ -1752,7 +1887,13 @@
 
         function loadSalesHistory() {
             const saved = localStorage.getItem('salesHistory');
-            if (saved) salesHistory = JSON.parse(saved);
+            if (saved) {
+                try {
+                    salesHistory = JSON.parse(saved);
+                } catch (e) {
+                    salesHistory = [];
+                }
+            }
         }
 
         function saveSalesHistory() {
@@ -2129,10 +2270,10 @@
             salesChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: labels.length > 0 ? labels : ['Sin datos'],
                     datasets: [{
                         label: 'Ventas (Bs.)',
-                        data: data,
+                        data: data.length > 0 ? data : [0],
                         borderColor: '#ff6f00',
                         backgroundColor: 'rgba(255, 111, 0, 0.1)',
                         fill: true,
@@ -2206,7 +2347,7 @@
             const tbody = document.getElementById('topProductsBody');
             
             if (sorted.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="no-data"><div class="no-data-icon">📊</div><p>No hay datos</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="no-data"><div class="no-data-icon">📊</div><p>No hay datos. Realiza algunas ventas o sincroniza desde Google.</p></td></tr>';
                 return;
             }
 
@@ -2227,7 +2368,7 @@
             const tbody = document.getElementById('salesHistoryBody');
             
             if (sales.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="no-data"><div class="no-data-icon">🧾</div><p>No hay ventas</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="no-data"><div class="no-data-icon">🧾</div><p>No hay ventas. Realiza algunas ventas o sincroniza desde Google.</p></td></tr>';
                 return;
             }
 
