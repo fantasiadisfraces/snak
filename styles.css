@@ -1294,7 +1294,7 @@ body {
 .toast {
     position: fixed;
     bottom: 2rem;
-    right: 2rem;
+    left: 2rem;
     display: none;
     align-items: center;
     gap: 0.75rem;
