@@ -1332,7 +1332,7 @@ body {
 .toast.show {
     display: flex;
     opacity: 0.85;
-    transform: translate(-50%, -50%) scale(1.20);
+    transform: translate(-50%, -10%) scale(1.20);
 }
 
 /* Toast de error - Rojo con 40% transparencia */
