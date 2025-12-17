@@ -1162,114 +1162,191 @@ body {
 }
 
 /* ==================== TICKET ==================== */
+/* ══════════════════════════════════════════════════════════════════════════════
+   TICKET DE IMPRESIÓN
+   ══════════════════════════════════════════════════════════════════════════════
+   Estilos para el recibo que se imprime:
+   - Letra más grande y en negrita para mejor legibilidad
+   - Palabras importantes en cursiva para diferenciación
+   - Ancho estándar de 80mm para impresoras térmicas
+   ══════════════════════════════════════════════════════════════════════════════ */
+
 .ticket {
     display: none;
     width: 80mm;
-    padding: 5mm;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    line-height: 1.4;
+    padding: 6mm;
+    font-family: 'Arial', 'Helvetica', sans-serif; /* Fuente más legible */
+    font-size: 14px; /* Tamaño base más grande */
+    font-weight: bold; /* Todo en negrita */
+    line-height: 1.5;
     color: #000;
     background: white;
 }
 
+/* Encabezado del ticket */
 .ticket-header {
     text-align: center;
+    margin-bottom: 8px;
 }
 
+/* Logo/Emoji del negocio */
 .ticket-logo {
-    font-size: 24px;
+    font-size: 32px; /* Logo más grande */
+    margin-bottom: 4px;
 }
 
+/* Nombre del negocio */
 .ticket-title {
-    font-size: 16px;
+    font-size: 20px; /* Título más grande */
+    font-weight: 900; /* Extra negrita */
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Subtítulo (dirección, teléfono) */
+.ticket-subtitle {
+    font-size: 12px;
+    font-style: italic; /* Cursiva para diferenciación */
+    font-weight: normal;
+    margin-top: 2px;
+}
+
+/* Línea divisoria */
+.ticket-divider {
+    text-align: center;
+    margin: 8px 0;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+/* Información del pedido (fecha, hora, número) */
+.ticket-info {
+    margin: 10px 0;
+    font-size: 13px;
     font-weight: bold;
 }
 
-.ticket-subtitle {
-    font-size: 11px;
+.ticket-info span {
+    font-style: italic; /* Cursiva para etiquetas */
 }
 
-.ticket-divider {
+/* Número de pedido destacado */
+.ticket-number {
+    font-size: 18px;
+    font-weight: 900;
     text-align: center;
-    margin: 6px 0;
-}
-
-.ticket-info {
     margin: 8px 0;
-    font-size: 11px;
+    padding: 4px;
+    border: 2px solid #000;
 }
 
+/* Cada item del pedido */
 .ticket-item {
-    margin: 6px 0;
+    margin: 8px 0;
+    padding: 4px 0;
+    border-bottom: 1px dashed #ccc;
 }
 
+/* Fila del item (nombre y precio) */
 .ticket-item-row {
     display: flex;
     justify-content: space-between;
-}
-
-.ticket-item-side {
-    font-size: 10px;
-    font-style: italic;
-    padding-left: 10px;
-}
-
-.ticket-total {
     font-size: 14px;
     font-weight: bold;
-    text-align: right;
 }
 
+/* Acompañamiento del item */
+.ticket-item-side {
+    font-size: 12px;
+    font-style: italic; /* Cursiva para acompañamientos */
+    font-weight: normal;
+    padding-left: 12px;
+    color: #333;
+}
+
+/* Total de la venta */
+.ticket-total {
+    font-size: 18px; /* Total más grande */
+    font-weight: 900; /* Extra negrita */
+    text-align: right;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 2px solid #000;
+}
+
+/* Información de pago */
 .ticket-payment {
-    font-size: 11px;
+    font-size: 13px;
+    font-weight: bold;
     text-align: right;
+    margin-top: 4px;
 }
 
+.ticket-payment span:first-child {
+    font-style: italic; /* Etiquetas en cursiva */
+}
+
+/* Pie del ticket */
 .ticket-footer {
     text-align: center;
-    margin-top: 10px;
-    font-size: 10px;
+    margin-top: 12px;
+    font-size: 11px;
+    font-style: italic; /* Mensaje final en cursiva */
+    font-weight: normal;
+    padding-top: 8px;
+    border-top: 1px dashed #000;
 }
 
-/* ==================== TOAST ==================== */
+/* ==================== TOAST - NOTIFICACIONES ==================== */
+/* 
+ * Toast: Notificación emergente que aparece al centro de la pantalla
+ * - Transparencia del 40% (opacity 0.6 en el fondo)
+ * - Transición suave de aparición y desaparición
+ * - Se centra horizontal y verticalmente
+ */
 .toast {
     position: fixed;
-    bottom: 2rem;
-    right: 2rem;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
     display: none;
     align-items: center;
     gap: .75rem;
-    padding: 1rem 1.5rem;
-    background: var(--success);
+    padding: 1.25rem 2rem;
+    background: rgba(0, 200, 83, 0.6); /* Verde con 40% transparencia */
+    backdrop-filter: blur(10px); /* Efecto de desenfoque del fondo */
+    -webkit-backdrop-filter: blur(10px);
     color: white;
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-lg);
-    font-weight: 600;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    font-weight: 700;
+    font-size: 1.1rem;
     z-index: 2000;
-    animation: slideInRight 0.3s ease;
-    max-width: 320px;
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    max-width: 400px;
+    text-align: center;
 }
 
+/* Estado visible del toast con animación suave */
 .toast.show {
     display: flex;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
 }
 
+/* Toast de error - Rojo con 40% transparencia */
 .toast.error {
-    background: var(--danger);
+    background: rgba(255, 23, 68, 0.6);
 }
 
+/* Toast de advertencia - Naranja con 40% transparencia */
 .toast.warning {
-    background: var(--warning);
-}
-
-@keyframes slideInRight {
-    from { transform: translateX(100px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
+    background: rgba(255, 145, 0, 0.6);
 }
 
 .toast-icon {
-    font-size: 1.2rem;
+    font-size: 1.5rem;
 }
 
 /* ==================== LOADING ==================== */
@@ -1430,32 +1507,77 @@ body {
         grid-template-columns: repeat(2, 1fr);
     }
 
+    /* Toast centrado también en móviles */
     .toast {
-        left: 1rem;
-        right: 1rem;
-        bottom: 5rem;
+        left: 50%;
+        right: auto;
+        top: 50%;
+        bottom: auto;
+        transform: translate(-50%, -50%) scale(0.8);
+        width: 90%;
+        max-width: 350px;
+    }
+    
+    .toast.show {
+        transform: translate(-50%, -50%) scale(1);
     }
 }
 
-/* ==================== PRINT ==================== */
+/* ══════════════════════════════════════════════════════════════════════════════
+   ESTILOS PARA IMPRESIÓN DE TICKET
+   ══════════════════════════════════════════════════════════════════════════════
+   Configuración especial para cuando se imprime el ticket:
+   - Oculta todo excepto el ticket
+   - Posiciona el ticket al inicio de la página
+   ══════════════════════════════════════════════════════════════════════════════ */
 @media print {
+    /* Ocultar todo el contenido */
     body * {
         visibility: hidden;
     }
 
+    /* Mostrar solo el ticket y su contenido */
     .ticket, .ticket * {
         visibility: visible;
     }
 
+    /* Posicionar el ticket */
     .ticket {
         display: block;
         position: absolute;
         left: 0;
         top: 0;
+        width: 80mm;
+        font-size: 14px;
+        font-weight: bold;
+    }
+    
+    /* Asegurar que el título sea grande */
+    .ticket-title {
+        font-size: 20px !important;
+        font-weight: 900 !important;
+    }
+    
+    /* Total destacado en impresión */
+    .ticket-total {
+        font-size: 18px !important;
+        font-weight: 900 !important;
+    }
+    
+    /* Items legibles */
+    .ticket-item-row {
+        font-size: 14px !important;
+        font-weight: bold !important;
     }
 }
 
-/* ==================== ESTADOS VACÍOS ==================== */
+/* ══════════════════════════════════════════════════════════════════════════════
+   ESTADOS VACÍOS Y MENSAJES
+   ══════════════════════════════════════════════════════════════════════════════
+   Estilos para cuando no hay datos que mostrar
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Contenedor de estado vacío para productos */
 .empty-products {
     display: flex;
     flex-direction: column;
@@ -1479,6 +1601,7 @@ body {
     color: var(--text-light);
 }
 
+/* Mensaje de conexión requerida */
 .connect-message {
     display: flex;
     align-items: center;
@@ -1493,7 +1616,13 @@ body {
     border: 2px dashed var(--border);
 }
 
-/* ==================== TABLAS - MEJORAS ==================== */
+/* ══════════════════════════════════════════════════════════════════════════════
+   ESTILOS PARA TABLAS DE ESTADÍSTICAS
+   ══════════════════════════════════════════════════════════════════════════════
+   Mejoras visuales para las tablas de productos más vendidos e historial
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Celda sin datos */
 .no-data {
     text-align: center !important;
     padding: 30px !important;
@@ -1502,42 +1631,50 @@ body {
     background: #fafafa;
 }
 
+/* Badges de ranking (1°, 2°, 3° lugar) */
 .rank-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    font-weight: 700;
-    font-size: 0.85rem;
+    font-weight: 800;
+    font-size: 0.9rem;
 }
 
+/* Primer lugar - Oro */
 .rank-badge.rank-1 {
     background: linear-gradient(135deg, #ffd700 0%, #ffb300 100%);
     color: #000;
-    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.5);
+    box-shadow: 0 3px 10px rgba(255, 193, 7, 0.5);
 }
 
+/* Segundo lugar - Plata */
 .rank-badge.rank-2 {
-    background: linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%);
+    background: linear-gradient(135deg, #e8e8e8 0%, #c0c0c0 100%);
     color: #000;
-    box-shadow: 0 2px 8px rgba(158, 158, 158, 0.4);
+    box-shadow: 0 3px 10px rgba(158, 158, 158, 0.4);
 }
 
+/* Tercer lugar - Bronce */
 .rank-badge.rank-3 {
     background: linear-gradient(135deg, #cd7f32 0%, #a0522d 100%);
     color: #fff;
-    box-shadow: 0 2px 8px rgba(205, 127, 50, 0.4);
+    box-shadow: 0 3px 10px rgba(205, 127, 50, 0.4);
 }
 
+/* Demás lugares */
 .rank-badge.rank-default {
     background: var(--bg-primary);
     color: var(--text-secondary);
-    border: 1px solid var(--border);
+    border: 2px solid var(--border);
 }
 
-/* ==================== GRÁFICAS ==================== */
+/* ══════════════════════════════════════════════════════════════════════════════
+   CONTENEDOR DE GRÁFICAS
+   ══════════════════════════════════════════════════════════════════════════════ */
+
 .chart-wrapper {
     position: relative;
     height: 280px;
