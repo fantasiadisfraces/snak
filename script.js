@@ -1,6 +1,6 @@
 // ========================================
-// SISTEMA POS - Versión 2.0
-// Base de Datos Normalizada con Google Sheets
+// SISTEMA POS - Versión 2.1
+// Base de Datos con Google Sheets - ESTADÍSTICAS CORREGIDAS
 // ========================================
 
 // ========================================
@@ -94,7 +94,6 @@ function checkReady() {
 }
 
 function showEmptyState() {
-    // Mostrar mensaje de que debe conectarse
     var grid = document.getElementById('productsGrid');
     if (grid) {
         grid.innerHTML = '<div class="empty-products"><div class="empty-icon">🔌</div><p>Conecta con Google para cargar el menú</p></div>';
@@ -135,7 +134,7 @@ function handleTokenResponse(resp) {
     updateGoogleStatus(true);
     obtenerEmailUsuario();
     
-    // CARGAR TODOS LOS DATOS DESDE GOOGLE SHEETS
+    // CARGAR TODOS LOS DATOS
     loadAllDataFromSheets();
     
     showToast('¡Conectado a Google!', 'success');
@@ -153,7 +152,6 @@ function logoutGoogle() {
     updateGoogleStatus(false);
     document.getElementById('userEmail').textContent = '';
     
-    // Limpiar datos
     CATEGORIES = {};
     PRODUCTS = {};
     SIDE_OPTIONS = [];
@@ -175,7 +173,6 @@ async function verificarToken() {
         updateGoogleStatus(true);
         obtenerEmailUsuario();
         
-        // CARGAR TODOS LOS DATOS
         loadAllDataFromSheets();
         
         console.log('✅ Token válido');
@@ -232,9 +229,9 @@ async function loadAllDataFromSheets() {
         await loadSidesFromSheet();
         console.log('✅ Acompañamientos cargados:', SIDE_OPTIONS.length);
         
-        // 4. Cargar último número de pedido
-        await loadLastOrderNumber();
-        console.log('✅ Número de orden:', orderNumber);
+        // 4. Cargar ventas e historial
+        await loadSalesFromSheet();
+        console.log('✅ Ventas cargadas:', salesHistory.length);
         
         dataLoaded = true;
         
@@ -247,14 +244,15 @@ async function loadAllDataFromSheets() {
         // Renderizar UI
         renderCategories();
         renderProducts(currentCategory);
+        updateStats();
         
         hideLoading();
-        showToast('¡Menú cargado correctamente!', 'success');
+        showToast('¡Datos cargados correctamente!', 'success');
         
     } catch (e) {
         console.error('❌ Error cargando datos:', e);
         hideLoading();
-        showToast('Error: ' + (e.message || 'No se pudo cargar el menú'), 'error');
+        showToast('Error: ' + (e.message || 'No se pudo cargar'), 'error');
     }
 }
 
@@ -275,7 +273,6 @@ async function loadCategoriesFromSheet() {
     }
     
     rows.forEach((row, index) => {
-        // Columnas: ID_Categoria, Nombre, Icono, Orden, Activo
         const id = row[0];
         const nombre = row[1];
         const icono = row[2] || '📦';
@@ -308,17 +305,15 @@ async function loadProductsFromSheet() {
     const rows = response.result.values || [];
     PRODUCTS = {};
     
-    // Inicializar arrays vacíos para cada categoría
     Object.keys(CATEGORIES).forEach(cat => {
         PRODUCTS[cat] = [];
     });
     
     if (rows.length === 0) {
-        throw new Error('No hay productos en la hoja. Agrega productos primero.');
+        throw new Error('No hay productos en la hoja.');
     }
     
     rows.forEach(row => {
-        // Columnas: ID_Producto, Nombre, Precio, ID_Categoria, Tiene_Acompañamiento, Activo
         const id = parseInt(row[0]) || 0;
         const nombre = row[1];
         const precio = parseFloat(row[2]) || 0;
@@ -327,7 +322,6 @@ async function loadProductsFromSheet() {
         const activo = (row[5] || 'TRUE').toString().toUpperCase();
         
         if (id && nombre && activo === 'TRUE') {
-            // Si la categoría no existe en PRODUCTS, crearla
             if (!PRODUCTS[categoria]) {
                 PRODUCTS[categoria] = [];
             }
@@ -341,18 +335,6 @@ async function loadProductsFromSheet() {
             });
         }
     });
-    
-    // Verificar que hay productos
-    let totalProductos = 0;
-    Object.values(PRODUCTS).forEach(arr => {
-        totalProductos += arr.length;
-    });
-    
-    if (totalProductos === 0) {
-        throw new Error('No hay productos activos');
-    }
-    
-    console.log('📦 Total productos cargados:', totalProductos);
 }
 
 // ========================================
@@ -368,7 +350,6 @@ async function loadSidesFromSheet() {
     SIDE_OPTIONS = [];
     
     rows.forEach(row => {
-        // Columnas: ID_Acompañamiento, Nombre, Orden, Activo
         const id = parseInt(row[0]) || 0;
         const nombre = row[1];
         const orden = parseInt(row[2]) || 99;
@@ -383,60 +364,178 @@ async function loadSidesFromSheet() {
         }
     });
     
-    // Ordenar por orden
     SIDE_OPTIONS.sort((a, b) => a.order - b.order);
     
     if (SIDE_OPTIONS.length === 0) {
-        console.log('⚠️ No hay acompañamientos, usando valores por defecto');
-        SIDE_OPTIONS = [
-            { id: 1, name: 'Sin acompañamiento', order: 1 }
-        ];
+        SIDE_OPTIONS = [{ id: 1, name: 'Sin acompañamiento', order: 1 }];
     }
 }
 
 // ========================================
-// CARGAR ÚLTIMO NÚMERO DE PEDIDO
+// CARGAR VENTAS DESDE GOOGLE SHEETS
 // ========================================
-async function loadLastOrderNumber() {
+async function loadSalesFromSheet() {
     try {
-        const response = await gapi.client.sheets.spreadsheets.values.get({
+        // Cargar ventas
+        const ventasResponse = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: SHEETS.VENTAS + '!A2:A10000'
+            range: SHEETS.VENTAS + '!A2:H50000'
         });
-        
-        const rows = response.result.values || [];
-        if (rows.length > 0) {
-            const numbers = rows.map(r => parseInt(r[0]) || 0).filter(n => n > 0);
-            if (numbers.length > 0) {
-                orderNumber = Math.max(...numbers) + 1;
-            }
-        }
-        
-        // También obtener el último ID de detalle
-        const detailResponse = await gapi.client.sheets.spreadsheets.values.get({
+
+        // Cargar detalles
+        const detalleResponse = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: SHEETS.DETALLE_VENTAS + '!A2:A50000'
+            range: SHEETS.DETALLE_VENTAS + '!A2:J100000'
         });
-        
-        const detailRows = detailResponse.result.values || [];
-        if (detailRows.length > 0) {
-            const detailNumbers = detailRows.map(r => parseInt(r[0]) || 0).filter(n => n > 0);
-            if (detailNumbers.length > 0) {
-                lastDetailId = Math.max(...detailNumbers);
-            }
+
+        const ventasRows = ventasResponse.result.values || [];
+        const detalleRows = detalleResponse.result.values || [];
+
+        console.log('📋 Filas de ventas encontradas:', ventasRows.length);
+        console.log('📋 Filas de detalles encontradas:', detalleRows.length);
+
+        if (ventasRows.length === 0) {
+            salesHistory = [];
+            orderNumber = 1;
+            lastDetailId = 0;
+            return;
         }
+
+        // Crear mapa de detalles por ID_Venta
+        const detallesPorVenta = {};
+        detalleRows.forEach(row => {
+            const idVenta = parseInt(row[1]) || 0;
+            if (idVenta > 0) {
+                if (!detallesPorVenta[idVenta]) {
+                    detallesPorVenta[idVenta] = [];
+                }
+                detallesPorVenta[idVenta].push({
+                    id: parseInt(row[2]) || 0,
+                    name: row[3] || 'Producto',
+                    sideId: row[4] ? parseInt(row[4]) : null,
+                    side: row[5] || null,
+                    quantity: parseInt(row[6]) || 1,
+                    price: parseFloat(row[7]) || 0,
+                    category: row[9] || 'otros'
+                });
+            }
+        });
+
+        // Construir historial de ventas
+        salesHistory = [];
         
+        ventasRows.forEach(row => {
+            const idVenta = parseInt(row[0]) || 0;
+            
+            if (idVenta > 0) {
+                // Parsear fecha y timestamp
+                let timestamp = new Date();
+                const fechaStr = row[1] || '';
+                const horaStr = row[2] || '';
+                
+                if (row[7]) {
+                    // Si hay timestamp ISO
+                    timestamp = new Date(row[7]);
+                } else if (fechaStr) {
+                    // Parsear fecha DD/MM/YYYY
+                    const parts = fechaStr.split('/');
+                    if (parts.length === 3) {
+                        const day = parts[0].padStart(2, '0');
+                        const month = parts[1].padStart(2, '0');
+                        const year = parts[2];
+                        timestamp = new Date(year + '-' + month + '-' + day + 'T' + (horaStr || '12:00:00'));
+                    }
+                }
+
+                const items = detallesPorVenta[idVenta] || [];
+                
+                // Si no hay items en detalle, crear uno genérico con el total
+                if (items.length === 0) {
+                    const total = parseFloat(row[3]) || 0;
+                    items.push({
+                        id: 0,
+                        name: 'Venta #' + idVenta,
+                        quantity: 1,
+                        price: total,
+                        category: 'otros'
+                    });
+                }
+
+                salesHistory.push({
+                    orderNumber: idVenta,
+                    date: fechaStr,
+                    time: horaStr,
+                    total: parseFloat(row[3]) || 0,
+                    received: parseFloat(row[4]) || 0,
+                    change: parseFloat(row[5]) || 0,
+                    items: items,
+                    timestamp: timestamp.toISOString()
+                });
+            }
+        });
+
+        // Actualizar número de orden
+        if (salesHistory.length > 0) {
+            const maxOrder = Math.max(...salesHistory.map(s => s.orderNumber));
+            orderNumber = maxOrder + 1;
+        } else {
+            orderNumber = 1;
+        }
+
+        // Actualizar último ID de detalle
+        if (detalleRows.length > 0) {
+            const detailIds = detalleRows.map(r => parseInt(r[0]) || 0);
+            lastDetailId = Math.max(...detailIds);
+        } else {
+            lastDetailId = 0;
+        }
+
         updateOrderNumber();
+        saveState();
+        
+        console.log('✅ Historial cargado:', salesHistory.length, 'ventas');
         
     } catch (e) {
-        console.log('ℹ️ Primera venta del sistema');
-        orderNumber = 1;
-        lastDetailId = 0;
+        console.error('Error cargando ventas:', e);
+        salesHistory = [];
     }
 }
 
 // ========================================
-// CONFIGURAR HOJAS (crear estructura inicial)
+// SINCRONIZAR DESDE GOOGLE SHEETS
+// ========================================
+async function syncFromGoogleSheets() {
+    if (!usuarioGoogle) {
+        showToast('Conecta Google primero', 'warning');
+        return;
+    }
+
+    try {
+        showLoading('Sincronizando datos...');
+        
+        // Recargar todo
+        await loadCategoriesFromSheet();
+        await loadProductsFromSheet();
+        await loadSidesFromSheet();
+        await loadSalesFromSheet();
+        
+        // Actualizar UI
+        renderCategories();
+        renderProducts(currentCategory);
+        updateStats();
+        
+        hideLoading();
+        showToast('✅ Datos sincronizados: ' + salesHistory.length + ' ventas', 'success');
+
+    } catch (error) {
+        hideLoading();
+        console.error('Error sincronizando:', error);
+        showToast('Error: ' + (error.message || 'No se pudo sincronizar'), 'error');
+    }
+}
+
+// ========================================
+// CONFIGURAR HOJAS
 // ========================================
 async function setupGoogleSheet() {
     if (!usuarioGoogle) {
@@ -454,7 +553,6 @@ async function setupGoogleSheet() {
         const hojasExistentes = sheet.result.sheets.map(s => s.properties.title);
         const hojasRequeridas = Object.values(SHEETS);
         
-        // Crear hojas que no existen
         for (const nombreHoja of hojasRequeridas) {
             if (!hojasExistentes.includes(nombreHoja)) {
                 await gapi.client.sheets.spreadsheets.batchUpdate({
@@ -469,7 +567,6 @@ async function setupGoogleSheet() {
             }
         }
 
-        // Configurar encabezados
         const headers = {
             [SHEETS.CATEGORIAS]: ['ID_Categoria', 'Nombre', 'Icono', 'Orden', 'Activo'],
             [SHEETS.PRODUCTOS]: ['ID_Producto', 'Nombre', 'Precio', 'ID_Categoria', 'Tiene_Acompañamiento', 'Activo'],
@@ -505,7 +602,7 @@ async function saveToGoogleSheets(sale) {
     if (!usuarioGoogle) return false;
 
     try {
-        // 1. Guardar encabezado de venta en hoja "Ventas"
+        // 1. Guardar encabezado de venta
         const ventaRow = [[
             sale.orderNumber,
             sale.date,
@@ -525,21 +622,21 @@ async function saveToGoogleSheets(sale) {
             resource: { values: ventaRow }
         });
 
-        // 2. Guardar detalle de cada item en hoja "Detalle_Ventas"
+        // 2. Guardar detalle de cada item
         const detalleRows = sale.items.map(item => {
             lastDetailId++;
             
             return [
-                lastDetailId,                           // ID_Detalle
-                sale.orderNumber,                       // ID_Venta
-                item.id,                                // ID_Producto
-                item.name,                              // Nombre_Producto
-                item.sideId || '',                      // ID_Acompañamiento
-                item.side || '',                        // Nombre_Acompañamiento
-                item.quantity,                          // Cantidad
-                item.price.toFixed(2),                  // Precio_Unitario
-                (item.price * item.quantity).toFixed(2), // Subtotal
-                item.category                           // ID_Categoria
+                lastDetailId,
+                sale.orderNumber,
+                item.id,
+                item.name,
+                item.sideId || '',
+                item.side || '',
+                item.quantity,
+                item.price.toFixed(2),
+                (item.price * item.quantity).toFixed(2),
+                item.category
             ];
         });
 
@@ -553,129 +650,13 @@ async function saveToGoogleSheets(sale) {
             });
         }
 
-        console.log('✅ Venta #' + sale.orderNumber + ' guardada en Google Sheets');
+        console.log('✅ Venta #' + sale.orderNumber + ' guardada');
         return true;
         
     } catch (error) {
         console.error('❌ Error guardando:', error);
         return false;
     }
-}
-
-// ========================================
-// SINCRONIZAR VENTAS DESDE GOOGLE SHEETS
-// ========================================
-async function syncFromGoogleSheets() {
-    if (!usuarioGoogle) {
-        showToast('Conecta Google primero', 'warning');
-        return;
-    }
-
-    try {
-        showLoading('Sincronizando ventas...');
-
-        // Cargar ventas
-        const ventasResponse = await gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: SHEETS.VENTAS + '!A2:H50000'
-        });
-
-        // Cargar detalles
-        const detalleResponse = await gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId: SPREADSHEET_ID,
-            range: SHEETS.DETALLE_VENTAS + '!A2:J100000'
-        });
-
-        const ventasRows = ventasResponse.result.values || [];
-        const detalleRows = detalleResponse.result.values || [];
-
-        if (ventasRows.length === 0) {
-            hideLoading();
-            showToast('No hay ventas registradas', 'warning');
-            updateStats();
-            return;
-        }
-
-        // Crear mapa de detalles por ID_Venta
-        const detallesPorVenta = {};
-        detalleRows.forEach(row => {
-            const idVenta = parseInt(row[1]) || 0;
-            if (!detallesPorVenta[idVenta]) {
-                detallesPorVenta[idVenta] = [];
-            }
-            detallesPorVenta[idVenta].push({
-                id: parseInt(row[2]) || 0,
-                name: row[3] || '',
-                sideId: row[4] ? parseInt(row[4]) : null,
-                side: row[5] || null,
-                quantity: parseInt(row[6]) || 1,
-                price: parseFloat(row[7]) || 0,
-                category: row[9] || 'otros'
-            });
-        });
-
-        // Construir historial de ventas
-        salesHistory = ventasRows.map(row => {
-            const idVenta = parseInt(row[0]) || 0;
-            
-            // Parsear timestamp
-            let timestamp = new Date();
-            if (row[7]) {
-                timestamp = new Date(row[7]);
-            } else if (row[1] && row[1].includes('/')) {
-                const parts = row[1].split('/');
-                if (parts.length === 3) {
-                    timestamp = new Date(parts[2] + '-' + parts[1].padStart(2, '0') + '-' + parts[0].padStart(2, '0') + 'T' + (row[2] || '00:00:00'));
-                }
-            }
-
-            return {
-                orderNumber: idVenta,
-                date: row[1] || '',
-                time: row[2] || '',
-                total: parseFloat(row[3]) || 0,
-                received: parseFloat(row[4]) || 0,
-                change: parseFloat(row[5]) || 0,
-                items: detallesPorVenta[idVenta] || [],
-                timestamp: timestamp.toISOString()
-            };
-        }).filter(sale => sale.orderNumber > 0);
-
-        // Actualizar número de orden
-        if (salesHistory.length > 0) {
-            const maxOrder = Math.max(...salesHistory.map(s => s.orderNumber));
-            orderNumber = maxOrder + 1;
-            updateOrderNumber();
-        }
-
-        // Actualizar último ID de detalle
-        if (detalleRows.length > 0) {
-            const maxDetail = Math.max(...detalleRows.map(r => parseInt(r[0]) || 0));
-            lastDetailId = maxDetail;
-        }
-
-        saveState();
-        updateStats();
-        hideLoading();
-        showToast('✅ ' + salesHistory.length + ' ventas sincronizadas', 'success');
-
-    } catch (error) {
-        hideLoading();
-        console.error('Error sincronizando:', error);
-        showToast('Error: ' + (error.result?.error?.message || error.message), 'error');
-    }
-}
-
-// ========================================
-// RECARGAR MENÚ
-// ========================================
-async function reloadMenu() {
-    if (!usuarioGoogle) {
-        showToast('Conecta Google primero', 'warning');
-        return;
-    }
-    
-    await loadAllDataFromSheets();
 }
 
 // ========================================
@@ -708,6 +689,7 @@ function showSection(section) {
     } else {
         document.getElementById('tabStats').classList.add('active');
         document.getElementById('statsSection').classList.add('active');
+        // Actualizar estadísticas al entrar
         updateStats();
     }
 }
@@ -724,7 +706,6 @@ function renderCategories() {
         return;
     }
 
-    // Ordenar categorías por orden
     const sortedCategories = Object.entries(CATEGORIES)
         .sort((a, b) => (a[1].order || 99) - (b[1].order || 99));
 
@@ -770,7 +751,6 @@ function renderProducts(category) {
 }
 
 function handleProductClick(productId) {
-    // Buscar producto en todas las categorías
     var product = null;
     
     for (var cat in PRODUCTS) {
@@ -1033,10 +1013,12 @@ async function confirmPayment() {
 
     document.getElementById('successModal').classList.add('active');
 
-    // Incrementar número de orden
     orderNumber++;
     updateOrderNumber();
     saveState();
+    
+    // Actualizar estadísticas
+    updateStats();
 }
 
 function prepareTicket(sale) {
@@ -1074,7 +1056,7 @@ function closeSuccessModal() {
 }
 
 // ========================================
-// ESTADÍSTICAS
+// ESTADÍSTICAS - FUNCIONES MATEMÁTICAS
 // ========================================
 function initDateFilters() {
     var today = new Date();
@@ -1132,9 +1114,13 @@ function getFilteredSales() {
     var dateFrom = document.getElementById('dateFrom');
     var dateTo = document.getElementById('dateTo');
 
-    if (!dateFrom || !dateTo) return salesHistory;
+    if (!dateFrom || !dateTo || !dateFrom.value || !dateTo.value) {
+        return salesHistory;
+    }
 
     var from = new Date(dateFrom.value);
+    from.setHours(0, 0, 0, 0);
+    
     var to = new Date(dateTo.value);
     to.setHours(23, 59, 59, 999);
 
@@ -1144,75 +1130,106 @@ function getFilteredSales() {
     });
 }
 
+// ========================================
+// ACTUALIZAR TODAS LAS ESTADÍSTICAS
+// ========================================
 function updateStats() {
+    console.log('📊 Actualizando estadísticas...');
+    console.log('📋 Total ventas en historial:', salesHistory.length);
+    
     var filteredSales = getFilteredSales();
+    console.log('📋 Ventas filtradas:', filteredSales.length);
 
-    // KPIs
-    var totalSales = 0;
-    var totalProducts = 0;
+    // ========== CALCULAR KPIs ==========
+    var totalSales = 0;      // Total en Bs.
+    var totalProducts = 0;   // Cantidad de productos vendidos
+    var totalOrders = filteredSales.length;  // Número de pedidos
 
     for (var i = 0; i < filteredSales.length; i++) {
-        totalSales += filteredSales[i].total;
-        for (var j = 0; j < filteredSales[i].items.length; j++) {
-            totalProducts += filteredSales[i].items[j].quantity;
+        var sale = filteredSales[i];
+        totalSales += sale.total;
+        
+        // Contar productos
+        if (sale.items && sale.items.length > 0) {
+            for (var j = 0; j < sale.items.length; j++) {
+                totalProducts += sale.items[j].quantity || 1;
+            }
         }
     }
 
-    var avgTicket = filteredSales.length > 0 ? totalSales / filteredSales.length : 0;
+    // Ticket promedio
+    var avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
 
+    // ========== MOSTRAR KPIs ==========
     var kpiSales = document.getElementById('kpiSales');
     var kpiOrders = document.getElementById('kpiOrders');
     var kpiAvg = document.getElementById('kpiAvg');
     var kpiProducts = document.getElementById('kpiProducts');
 
     if (kpiSales) kpiSales.textContent = 'Bs. ' + totalSales.toFixed(2);
-    if (kpiOrders) kpiOrders.textContent = filteredSales.length;
+    if (kpiOrders) kpiOrders.textContent = totalOrders;
     if (kpiAvg) kpiAvg.textContent = 'Bs. ' + avgTicket.toFixed(2);
     if (kpiProducts) kpiProducts.textContent = totalProducts;
 
-    // Gráficos y tablas
+    console.log('💰 Ventas totales:', totalSales.toFixed(2));
+    console.log('🧾 Pedidos:', totalOrders);
+    console.log('📈 Ticket promedio:', avgTicket.toFixed(2));
+    console.log('🍗 Productos:', totalProducts);
+
+    // ========== ACTUALIZAR GRÁFICOS Y TABLAS ==========
     updateSalesChart(filteredSales);
     updateCategoryChart(filteredSales);
     updateTopProducts(filteredSales);
     updateSalesHistory(filteredSales);
 }
 
+// ========================================
+// GRÁFICO DE VENTAS POR DÍA
+// ========================================
 function updateSalesChart(sales) {
     var canvas = document.getElementById('salesChart');
     if (!canvas) return;
 
     var ctx = canvas.getContext('2d');
 
+    // Agrupar ventas por día
     var salesByDay = {};
     for (var i = 0; i < sales.length; i++) {
-        var date = sales[i].date;
+        var date = sales[i].date || 'Sin fecha';
         if (!salesByDay[date]) salesByDay[date] = 0;
         salesByDay[date] += sales[i].total;
     }
 
+    // Ordenar fechas
     var sortedDates = Object.keys(salesByDay).sort(function(a, b) {
+        if (!a.includes('/') || !b.includes('/')) return 0;
         var partsA = a.split('/');
         var partsB = b.split('/');
         if (partsA.length === 3 && partsB.length === 3) {
-            var dateA = new Date(partsA[2] + '-' + partsA[1] + '-' + partsA[0]);
-            var dateB = new Date(partsB[2] + '-' + partsB[1] + '-' + partsB[0]);
+            var dateA = new Date(partsA[2] + '-' + partsA[1].padStart(2,'0') + '-' + partsA[0].padStart(2,'0'));
+            var dateB = new Date(partsB[2] + '-' + partsB[1].padStart(2,'0') + '-' + partsB[0].padStart(2,'0'));
             return dateA - dateB;
         }
         return 0;
     });
 
-    var labels = sortedDates.slice(-14);
+    var labels = sortedDates.slice(-14); // Últimos 14 días
     var data = labels.map(function(d) { return salesByDay[d] || 0; });
 
-    if (salesChart) salesChart.destroy();
+    // Destruir gráfico anterior
+    if (salesChart) {
+        salesChart.destroy();
+        salesChart = null;
+    }
 
+    // Crear nuevo gráfico
     salesChart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: labels,
+            labels: labels.length > 0 ? labels : ['Sin datos'],
             datasets: [{
                 label: 'Ventas (Bs.)',
-                data: data,
+                data: data.length > 0 ? data : [0],
                 backgroundColor: 'rgba(255, 111, 0, 0.8)',
                 borderRadius: 8,
                 borderSkipped: false
@@ -1223,13 +1240,24 @@ function updateSalesChart(sales) {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                y: { 
+                    beginAtZero: true, 
+                    grid: { color: 'rgba(0,0,0,0.05)' },
+                    ticks: {
+                        callback: function(value) {
+                            return 'Bs. ' + value;
+                        }
+                    }
+                },
                 x: { grid: { display: false } }
             }
         }
     });
 }
 
+// ========================================
+// GRÁFICO DE VENTAS POR CATEGORÍA
+// ========================================
 function updateCategoryChart(sales) {
     var canvas = document.getElementById('categoryChart');
     if (!canvas) return;
@@ -1238,38 +1266,58 @@ function updateCategoryChart(sales) {
 
     // Inicializar ventas por categoría
     var salesByCategory = {};
-    Object.keys(CATEGORIES).forEach(cat => {
+    
+    // Usar categorías cargadas o por defecto
+    var categoriasActivas = Object.keys(CATEGORIES);
+    if (categoriasActivas.length === 0) {
+        categoriasActivas = ['milanesas', 'pollos', 'extras', 'bebidas'];
+    }
+    
+    categoriasActivas.forEach(function(cat) {
         salesByCategory[cat] = 0;
     });
 
+    // Sumar ventas por categoría
     for (var i = 0; i < sales.length; i++) {
-        for (var j = 0; j < sales[i].items.length; j++) {
-            var item = sales[i].items[j];
-            if (salesByCategory.hasOwnProperty(item.category)) {
-                salesByCategory[item.category] += item.price * item.quantity;
-            } else {
-                salesByCategory[item.category] = item.price * item.quantity;
+        var sale = sales[i];
+        if (sale.items && sale.items.length > 0) {
+            for (var j = 0; j < sale.items.length; j++) {
+                var item = sale.items[j];
+                var cat = item.category || 'otros';
+                if (!salesByCategory[cat]) {
+                    salesByCategory[cat] = 0;
+                }
+                salesByCategory[cat] += (item.price || 0) * (item.quantity || 1);
             }
         }
     }
 
-    var labels = Object.keys(salesByCategory).map(cat => {
-        var catInfo = CATEGORIES[cat];
-        return catInfo ? catInfo.icon + ' ' + catInfo.name : cat;
-    });
-    
-    var data = Object.values(salesByCategory);
+    // Preparar datos para el gráfico
+    var labels = [];
+    var data = [];
     var colors = ['#ff6f00', '#ffc107', '#00c853', '#2979ff', '#9c27b0', '#e91e63', '#00bcd4', '#8bc34a'];
+    
+    Object.keys(salesByCategory).forEach(function(cat, index) {
+        var catInfo = CATEGORIES[cat];
+        var label = catInfo ? catInfo.icon + ' ' + catInfo.name : cat;
+        labels.push(label);
+        data.push(salesByCategory[cat]);
+    });
 
-    if (categoryChart) categoryChart.destroy();
+    // Destruir gráfico anterior
+    if (categoryChart) {
+        categoryChart.destroy();
+        categoryChart = null;
+    }
 
+    // Crear nuevo gráfico
     categoryChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: labels,
+            labels: labels.length > 0 ? labels : ['Sin datos'],
             datasets: [{
-                data: data,
-                backgroundColor: colors.slice(0, labels.length),
+                data: data.length > 0 ? data : [1],
+                backgroundColor: colors.slice(0, Math.max(labels.length, 1)),
                 borderWidth: 3,
                 borderColor: '#ffffff'
             }]
@@ -1279,31 +1327,60 @@ function updateCategoryChart(sales) {
             maintainAspectRatio: false,
             cutout: '55%',
             plugins: {
-                legend: { position: 'bottom' }
+                legend: { 
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': Bs. ' + context.raw.toFixed(2);
+                        }
+                    }
+                }
             }
         }
     });
 }
 
+// ========================================
+// TABLA DE PRODUCTOS MÁS VENDIDOS
+// ========================================
 function updateTopProducts(sales) {
     var tbody = document.getElementById('topProductsBody');
     if (!tbody) return;
 
+    // Agrupar ventas por producto
     var productSales = {};
 
     for (var i = 0; i < sales.length; i++) {
-        for (var j = 0; j < sales[i].items.length; j++) {
-            var item = sales[i].items[j];
-            var key = item.name;
-            if (!productSales[key]) {
-                productSales[key] = { name: item.name, category: item.category, quantity: 0, revenue: 0 };
+        var sale = sales[i];
+        if (sale.items && sale.items.length > 0) {
+            for (var j = 0; j < sale.items.length; j++) {
+                var item = sale.items[j];
+                var key = item.name || 'Producto';
+                
+                if (!productSales[key]) {
+                    productSales[key] = { 
+                        name: item.name || 'Producto', 
+                        category: item.category || 'otros', 
+                        quantity: 0, 
+                        revenue: 0 
+                    };
+                }
+                productSales[key].quantity += item.quantity || 1;
+                productSales[key].revenue += (item.price || 0) * (item.quantity || 1);
             }
-            productSales[key].quantity += item.quantity;
-            productSales[key].revenue += item.price * item.quantity;
         }
     }
 
-    var sorted = Object.values(productSales).sort(function(a, b) { return b.quantity - a.quantity; }).slice(0, 10);
+    // Ordenar por cantidad vendida
+    var sorted = Object.values(productSales)
+        .sort(function(a, b) { return b.quantity - a.quantity; })
+        .slice(0, 10); // Top 10
 
     if (sorted.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="no-data">📊 No hay datos disponibles</td></tr>';
@@ -1314,14 +1391,19 @@ function updateTopProducts(sales) {
     for (var k = 0; k < sorted.length; k++) {
         var product = sorted[k];
         var cat = CATEGORIES[product.category];
-        var catDisplay = cat ? cat.icon + ' ' + cat.name : product.category;
-        var rankClass = k < 3 ? 'rank-' + (k + 1) : 'rank-default';
+        var catDisplay = cat ? cat.icon + ' ' + cat.name : (product.category || 'Otros');
+        
+        // Clase para ranking
+        var rankClass = 'rank-default';
+        if (k === 0) rankClass = 'rank-1';
+        else if (k === 1) rankClass = 'rank-2';
+        else if (k === 2) rankClass = 'rank-3';
 
         html += '<tr>' +
             '<td><span class="rank-badge ' + rankClass + '">' + (k + 1) + '</span></td>' +
             '<td><strong>' + product.name + '</strong></td>' +
             '<td>' + catDisplay + '</td>' +
-            '<td>' + product.quantity + '</td>' +
+            '<td><strong>' + product.quantity + '</strong></td>' +
             '<td><strong>Bs. ' + product.revenue.toFixed(2) + '</strong></td>' +
         '</tr>';
     }
@@ -1329,6 +1411,9 @@ function updateTopProducts(sales) {
     tbody.innerHTML = html;
 }
 
+// ========================================
+// TABLA DE HISTORIAL DE VENTAS
+// ========================================
 function updateSalesHistory(sales) {
     var tbody = document.getElementById('salesHistoryBody');
     if (!tbody) return;
@@ -1338,25 +1423,31 @@ function updateSalesHistory(sales) {
         return;
     }
 
+    // Ordenar por fecha más reciente
     var sorted = sales.slice().sort(function(a, b) { 
         return new Date(b.timestamp) - new Date(a.timestamp); 
     });
 
     var html = '';
-    var limit = Math.min(sorted.length, 50);
+    var limit = Math.min(sorted.length, 50); // Máximo 50 registros
     
     for (var i = 0; i < limit; i++) {
         var sale = sorted[i];
+        
+        // Contar items
         var itemCount = 0;
-        for (var j = 0; j < sale.items.length; j++) {
-            itemCount += sale.items[j].quantity;
+        if (sale.items && sale.items.length > 0) {
+            for (var j = 0; j < sale.items.length; j++) {
+                itemCount += sale.items[j].quantity || 1;
+            }
         }
+        
         html += '<tr>' +
-            '<td><strong>#' + sale.orderNumber.toString().padStart(4, '0') + '</strong></td>' +
-            '<td>' + sale.date + '</td>' +
-            '<td>' + sale.time + '</td>' +
+            '<td><strong>#' + (sale.orderNumber || 0).toString().padStart(4, '0') + '</strong></td>' +
+            '<td>' + (sale.date || '-') + '</td>' +
+            '<td>' + (sale.time || '-') + '</td>' +
             '<td>' + itemCount + ' items</td>' +
-            '<td><strong>Bs. ' + sale.total.toFixed(2) + '</strong></td>' +
+            '<td><strong>Bs. ' + (sale.total || 0).toFixed(2) + '</strong></td>' +
             '<td>Bs. ' + (sale.received || 0).toFixed(2) + '</td>' +
             '<td>Bs. ' + (sale.change || 0).toFixed(2) + '</td>' +
         '</tr>';
@@ -1365,6 +1456,9 @@ function updateSalesHistory(sales) {
     tbody.innerHTML = html;
 }
 
+// ========================================
+// EXPORTAR A CSV
+// ========================================
 function exportToCSV() {
     var filteredSales = getFilteredSales();
 
@@ -1377,10 +1471,21 @@ function exportToCSV() {
 
     for (var i = 0; i < filteredSales.length; i++) {
         var sale = filteredSales[i];
-        var items = sale.items.map(function(item) {
-            return item.name + (item.side ? ' + ' + item.side : '') + ' x' + item.quantity;
-        }).join('; ');
-        csv += sale.orderNumber + ',' + sale.date + ',' + sale.time + ',"' + items + '",' + sale.total.toFixed(2) + ',' + (sale.received || 0).toFixed(2) + ',' + (sale.change || 0).toFixed(2) + '\n';
+        var items = '';
+        
+        if (sale.items && sale.items.length > 0) {
+            items = sale.items.map(function(item) {
+                return item.name + (item.side ? ' + ' + item.side : '') + ' x' + item.quantity;
+            }).join('; ');
+        }
+        
+        csv += sale.orderNumber + ',' + 
+               sale.date + ',' + 
+               sale.time + ',"' + 
+               items + '",' + 
+               sale.total.toFixed(2) + ',' + 
+               (sale.received || 0).toFixed(2) + ',' + 
+               (sale.change || 0).toFixed(2) + '\n';
     }
 
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1391,7 +1496,7 @@ function exportToCSV() {
     link.click();
     document.body.removeChild(link);
 
-    showToast('CSV descargado', 'success');
+    showToast('CSV descargado con ' + filteredSales.length + ' ventas', 'success');
 }
 
 // ========================================
@@ -1482,14 +1587,18 @@ function saveState() {
 // INICIALIZACIÓN
 // ========================================
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🍗 Iniciando Sistema POS v2.1...');
+    
     loadState();
     updateCart();
     updateOrderNumber();
     initDateFilters();
     updateDateTime();
     setInterval(updateDateTime, 1000);
+    
+    // Actualizar estadísticas con datos locales
     updateStats();
 
-    console.log('🍗 Sistema POS v2.0 inicializado');
-    console.log('📋 Esperando conexión con Google Sheets...');
+    console.log('✅ Sistema POS inicializado');
+    console.log('📋 Ventas en localStorage:', salesHistory.length);
 });
