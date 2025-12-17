@@ -6,12 +6,19 @@
     <meta name="theme-color" content="#ff6f00">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Sistema de Punto de Venta para Restaurante">
     <title>🍗 Sistema de Caja - Milanesas & Pollo</title>
+    
+    <!-- Fuentes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet">
+    
+    <!-- Estilos -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Header Principal -->
+    <!-- ==================== HEADER ==================== -->
     <header class="main-header">
         <div class="header-content">
             <div class="brand">
@@ -42,7 +49,7 @@
         </div>
     </header>
 
-    <!-- Navegación Principal -->
+    <!-- ==================== NAVEGACIÓN ==================== -->
     <nav class="main-nav">
         <button class="nav-tab active" id="tabPOS" onclick="showSection('pos')">
             <span class="nav-icon">🛒</span>
@@ -54,10 +61,10 @@
         </button>
     </nav>
 
-    <!-- Contenedor Principal -->
+    <!-- ==================== CONTENEDOR PRINCIPAL ==================== -->
     <main class="main-container">
         
-        <!-- ==================== SECCIÓN POS ==================== -->
+        <!-- SECCIÓN POS -->
         <section class="pos-section active" id="posSection">
             <div class="pos-layout">
                 
@@ -104,7 +111,7 @@
             </div>
         </section>
 
-        <!-- ==================== SECCIÓN ESTADÍSTICAS ==================== -->
+        <!-- SECCIÓN ESTADÍSTICAS -->
         <section class="stats-section" id="statsSection">
             
             <!-- Filtros -->
@@ -166,7 +173,7 @@
 
             <!-- Acciones de Sincronización -->
             <div class="sync-actions">
-                <button class="btn-sync" onclick="setupGoogleSheet()">
+                <button class="btn-sync setup" onclick="setupGoogleSheet()">
                     <span>⚙️</span> Configurar Hoja
                 </button>
                 <button class="btn-sync primary" onclick="syncFromGoogleSheets()">
@@ -314,7 +321,7 @@
         </div>
     </div>
 
-    <!-- Ticket para Imprimir -->
+    <!-- ==================== TICKET PARA IMPRIMIR ==================== -->
     <div class="ticket" id="ticket">
         <div class="ticket-header">
             <div class="ticket-logo">🍗</div>
@@ -344,22 +351,30 @@
         </div>
     </div>
 
-    <!-- Toast Notifications -->
+    <!-- ==================== NOTIFICACIONES ==================== -->
     <div class="toast" id="toast">
         <span class="toast-icon" id="toastIcon">✅</span>
         <span class="toast-message" id="toastMessage"></span>
     </div>
 
-    <!-- Loading Overlay -->
+    <!-- ==================== LOADING ==================== -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-spinner"></div>
         <div class="loading-text" id="loadingText">Cargando...</div>
     </div>
 
-    <!-- Scripts -->
+    <!-- ==================== SCRIPTS ==================== -->
+    <!-- Chart.js para gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Google API - Cargar antes del script principal -->
     <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    
+    <!-- Configuración (credenciales) -->
+    <script src="config.js"></script>
+    
+    <!-- Script principal -->
     <script src="script.js"></script>
 </body>
 </html>
