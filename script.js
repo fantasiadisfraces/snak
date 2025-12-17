@@ -1722,7 +1722,7 @@ function showToast(message, type = 'success') {
     text.textContent = message;
     
     // Ocultar después de 3 segundos
-    setTimeout(() => toast.classList.remove('show'), 3000);
+    setTimeout(() => toast.classList.remove('show'), 1000);
 }
 
 /**
