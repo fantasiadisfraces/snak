@@ -8,7 +8,7 @@
     <!-- Fuentes -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Bebas+Neue&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Bebas+Neue&family=Oswald:wght@300;400;500&display=swap" rel="stylesheet">
 
     <!-- Estilos -->
     <link rel="stylesheet" href="styles.css">
@@ -31,7 +31,22 @@
 <header class="main-header">
     <div class="header-content">
         <div class="brand">
-            <div class="logo">🍗</div>
+            <div class="logo-svg">
+                <svg viewBox="0 0 400 460" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <style>
+                            .bread { fill: #e3c07c; }
+                            .meat { fill: #d14f4f; }
+                        </style>
+                    </defs>
+                    <path class="bread" d="M 70,120 Q 70,80 120,80 L 140,80 Q 135,90 150,95 Q 165,80 180,75 L 220,75 Q 215,90 230,95 Q 245,80 280,90 Q 330,100 330,130 L 330,135 L 70,135 Z"/>
+                    <path fill="none" stroke="#e3c07c" stroke-width="12" stroke-linecap="round" d="M 75,155 Q 95,140 115,155 Q 135,170 155,155 Q 175,140 195,155 Q 215,170 235,155 Q 255,140 275,155 Q 295,170 315,155"/>
+                    <rect x="65" y="175" width="270" height="30" rx="15" class="meat"/>
+                    <path class="bread" d="M 75,215 L 325,215 Q 325,235 300,240 Q 200,225 180,225 Q 160,235 100,240 Q 75,235 75,215 Z"/>
+                    <text x="50%" y="340" text-anchor="middle" fill="#ffffff" font-family="Oswald, sans-serif" font-size="85" font-weight="500" letter-spacing="-2">Mindy's</text>
+                    <text x="50%" y="430" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-family="Oswald, sans-serif" font-size="24" font-weight="300" letter-spacing="2">FAST FOOD</text>
+                </svg>
+            </div>
             <div class="brand-text">
                 <h1>PUNTO DE VENTA</h1>
                 <span class="tagline">Milanesas & Pollo a la Barbacoa</span>
@@ -125,25 +140,53 @@
 <section class="stats-section" id="statsSection">
 
     <!-- Filtros -->
-    <div class="stats-filters">
-        <div class="filter-group">
-            <div class="date-range">
-                <div class="date-field">
-                    <label>Desde</label>
-                    <input type="date" id="dateFrom" class="date-input">
-                </div>
-                <div class="date-field">
-                    <label>Hasta</label>
-                    <input type="date" id="dateTo" class="date-input">
-                </div>
-                <button class="btn-filter" onclick="applyFilters()">🔍 Filtrar</button>
+    <!-- Panel de Resumen del Turno -->
+    <div class="stats-summary-panel">
+        <div class="summary-header">
+            <div class="summary-title">
+                <span class="summary-icon">📋</span>
+                <h3>Resumen del Turno</h3>
+            </div>
+            <div class="shift-time">
+                <span class="shift-label">Turno iniciado:</span>
+                <span class="shift-value" id="shiftStartTime">--:--</span>
             </div>
         </div>
-        <div class="quick-filters">
-            <button class="chip active" data-filter="today" onclick="setQuickFilter('today')">Hoy</button>
-            <button class="chip" data-filter="week" onclick="setQuickFilter('week')">Semana</button>
-            <button class="chip" data-filter="month" onclick="setQuickFilter('month')">Mes</button>
-            <button class="chip" data-filter="all" onclick="setQuickFilter('all')">Todo</button>
+        
+        <div class="last-sale-info" id="lastSaleInfo">
+            <div class="last-sale-header">
+                <span>🧾 Última Venta</span>
+                <span class="last-sale-number" id="lastSaleNumber">---</span>
+            </div>
+            <div class="last-sale-details">
+                <div class="last-sale-item">
+                    <span class="label">Total:</span>
+                    <span class="value" id="lastSaleTotal">Bs. 0.00</span>
+                </div>
+                <div class="last-sale-item">
+                    <span class="label">Hora:</span>
+                    <span class="value" id="lastSaleTime">--:--</span>
+                </div>
+                <div class="last-sale-item">
+                    <span class="label">Items:</span>
+                    <span class="value" id="lastSaleItems">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="quick-actions-bar">
+            <button class="quick-action-btn" onclick="generateDailyReport()">
+                <span class="action-icon">📊</span>
+                <span class="action-text">Reporte del Día</span>
+            </button>
+            <button class="quick-action-btn" onclick="showTopSelling()">
+                <span class="action-icon">🏆</span>
+                <span class="action-text">Más Vendidos</span>
+            </button>
+            <button class="quick-action-btn danger" onclick="confirmCloseTurn()">
+                <span class="action-icon">🔒</span>
+                <span class="action-text">Cerrar Turno</span>
+            </button>
         </div>
     </div>
 
