@@ -1,11 +1,4 @@
-// ==================== CONFIGURACIÓN ====================
-const CLIENT_ID = CONFIG.CLIENT_ID;
-const API_KEY = CONFIG.API_KEY;
-const SPREADSHEET_ID = CONFIG.GOOGLE_SHEET_ID;
-const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
-const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';;
-
-// ==================== PRODUCTOS ====================
+// ==================== PRODUCTOS DEL MENÚ ====================
 const PRODUCTS = {
     milanesas: [
         { id: 1, name: 'Milanesa de Pollo', price: 35, hasSide: true, category: 'milanesas' },
@@ -63,7 +56,7 @@ let state = {
     gisInited: false
 };
 
-let tokenClient;
+let tokenClient = null;
 let salesChart = null;
 let categoryChart = null;
 
@@ -79,16 +72,16 @@ function init() {
     initDateFilters();
     updateDateTime();
     setInterval(updateDateTime, 1000);
-    
-    // Cargar estadísticas iniciales
     updateStats();
+    
+    console.log('✅ Sistema POS inicializado correctamente');
 }
 
 function loadState() {
-    const savedOrder = localStorage.getItem('orderNumber');
+    const savedOrder = localStorage.getItem('pos_orderNumber');
     if (savedOrder) state.orderNumber = parseInt(savedOrder);
     
-    const savedHistory = localStorage.getItem('salesHistory');
+    const savedHistory = localStorage.getItem('pos_salesHistory');
     if (savedHistory) {
         try {
             state.salesHistory = JSON.parse(savedHistory);
@@ -99,8 +92,8 @@ function loadState() {
 }
 
 function saveState() {
-    localStorage.setItem('orderNumber', state.orderNumber);
-    localStorage.setItem('salesHistory', JSON.stringify(state.salesHistory));
+    localStorage.setItem('pos_orderNumber', state.orderNumber);
+    localStorage.setItem('pos_salesHistory', JSON.stringify(state.salesHistory));
 }
 
 function updateDateTime() {
@@ -112,11 +105,17 @@ function updateDateTime() {
         hour: '2-digit', 
         minute: '2-digit' 
     };
-    document.getElementById('datetime').textContent = now.toLocaleDateString('es-BO', options);
+    const datetimeEl = document.getElementById('datetime');
+    if (datetimeEl) {
+        datetimeEl.textContent = now.toLocaleDateString('es-BO', options);
+    }
 }
 
 function updateOrderNumber() {
-    document.getElementById('orderNumber').textContent = `#${state.orderNumber.toString().padStart(4, '0')}`;
+    const orderEl = document.getElementById('orderNumber');
+    if (orderEl) {
+        orderEl.textContent = `#${state.orderNumber.toString().padStart(4, '0')}`;
+    }
 }
 
 // ==================== GOOGLE API ====================
@@ -131,25 +130,45 @@ async function initGapiClient() {
             discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
         });
         state.gapiInited = true;
+        console.log('✅ GAPI inicializado');
         checkSavedToken();
     } catch (err) {
-        console.error('Error GAPI:', err);
+        console.error('❌ Error GAPI:', err);
+        showToast('Error al inicializar Google API', 'error');
     }
 }
 
 function gisLoaded() {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CONFIG.CLIENT_ID,
-        scope: CONFIG.SCOPES,
-        callback: ''
-    });
-    state.gisInited = true;
-    checkSavedToken();
+    try {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CONFIG.CLIENT_ID,
+            scope: CONFIG.SCOPES,
+            callback: handleAuthCallback
+        });
+        state.gisInited = true;
+        console.log('✅ GIS inicializado');
+        checkSavedToken();
+    } catch (err) {
+        console.error('❌ Error GIS:', err);
+    }
+}
+
+function handleAuthCallback(response) {
+    if (response.error !== undefined) {
+        console.error('Error de autenticación:', response);
+        showToast('Error al conectar con Google: ' + response.error, 'error');
+        return;
+    }
+    
+    // Guardar token
+    localStorage.setItem('pos_googleToken', response.access_token);
+    updateGoogleStatus(true);
+    showToast('¡Conectado a Google Sheets!', 'success');
 }
 
 function checkSavedToken() {
     if (state.gapiInited && state.gisInited) {
-        const savedToken = localStorage.getItem('googleAccessToken');
+        const savedToken = localStorage.getItem('pos_googleToken');
         if (savedToken) {
             gapi.client.setToken({ access_token: savedToken });
             verifyToken();
@@ -163,35 +182,34 @@ async function verifyToken() {
             spreadsheetId: CONFIG.GOOGLE_SHEET_ID
         });
         updateGoogleStatus(true);
+        console.log('✅ Token válido');
     } catch (error) {
-        localStorage.removeItem('googleAccessToken');
+        console.log('⚠️ Token expirado o inválido');
+        localStorage.removeItem('pos_googleToken');
         updateGoogleStatus(false);
     }
 }
 
 function handleGoogleAuth() {
+    if (!state.gapiInited || !state.gisInited) {
+        showToast('Esperando inicialización de Google...', 'warning');
+        return;
+    }
+    
     if (state.isGoogleConnected) {
         // Desconectar
         const token = gapi.client.getToken();
         if (token) {
-            google.accounts.oauth2.revoke(token.access_token);
+            google.accounts.oauth2.revoke(token.access_token, () => {
+                console.log('Token revocado');
+            });
             gapi.client.setToken('');
-            localStorage.removeItem('googleAccessToken');
+            localStorage.removeItem('pos_googleToken');
         }
         updateGoogleStatus(false);
         showToast('Desconectado de Google', 'warning');
     } else {
-        // Conectar
-        tokenClient.callback = async (resp) => {
-            if (resp.error) {
-                showToast('Error: ' + resp.error, 'error');
-                return;
-            }
-            localStorage.setItem('googleAccessToken', resp.access_token);
-            updateGoogleStatus(true);
-            showToast('¡Conectado a Google Sheets!', 'success');
-        };
-
+        // Conectar - Solicitar token
         if (gapi.client.getToken() === null) {
             tokenClient.requestAccessToken({ prompt: 'consent' });
         } else {
@@ -202,21 +220,22 @@ function handleGoogleAuth() {
 
 function updateGoogleStatus(connected) {
     state.isGoogleConnected = connected;
+    
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');
     const btn = document.getElementById('btnGoogle');
     const btnText = document.getElementById('btnGoogleText');
 
     if (connected) {
-        dot.classList.add('connected');
-        text.textContent = 'Conectado';
-        btnText.textContent = 'Desconectar';
-        btn.classList.add('connected');
+        if (dot) dot.classList.add('connected');
+        if (text) text.textContent = 'Conectado';
+        if (btnText) btnText.textContent = 'Desconectar';
+        if (btn) btn.classList.add('connected');
     } else {
-        dot.classList.remove('connected');
-        text.textContent = 'Desconectado';
-        btnText.textContent = 'Conectar';
-        btn.classList.remove('connected');
+        if (dot) dot.classList.remove('connected');
+        if (text) text.textContent = 'Desconectado';
+        if (btnText) btnText.textContent = 'Conectar';
+        if (btn) btn.classList.remove('connected');
     }
 }
 
@@ -227,24 +246,32 @@ async function setupGoogleSheet() {
     }
 
     try {
-        showLoading('Configurando hoja...');
+        showLoading('Configurando hoja de cálculo...');
         
+        // Obtener información del spreadsheet
         const spreadsheet = await gapi.client.sheets.spreadsheets.get({
             spreadsheetId: CONFIG.GOOGLE_SHEET_ID
         });
 
         const sheets = spreadsheet.result.sheets || [];
-        let ventasSheet = sheets.find(s => s.properties.title === 'Ventas');
+        let ventasSheet = sheets.find(s => s.properties.title === CONFIG.SHEET_NAME);
 
+        // Crear hoja si no existe
         if (!ventasSheet) {
             await gapi.client.sheets.spreadsheets.batchUpdate({
                 spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
                 resource: {
-                    requests: [{ addSheet: { properties: { title: 'Ventas' } } }]
+                    requests: [{ 
+                        addSheet: { 
+                            properties: { title: CONFIG.SHEET_NAME } 
+                        } 
+                    }]
                 }
             });
+            console.log('✅ Hoja creada:', CONFIG.SHEET_NAME);
         }
 
+        // Crear encabezados
         const headers = [[
             'ID_Pedido', 'Fecha', 'Hora', 'Productos', 'Acompañamientos', 
             'Cantidades', 'Categorias', 'Subtotales', 'Total', 'Pago_Recibido', 'Cambio'
@@ -252,15 +279,16 @@ async function setupGoogleSheet() {
 
         await gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-            range: 'Ventas!A1:K1',
+            range: `${CONFIG.SHEET_NAME}!A1:K1`,
             valueInputOption: 'RAW',
             resource: { values: headers }
         });
 
         hideLoading();
         showToast('¡Hoja configurada correctamente!', 'success');
+        
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error configurando hoja:', error);
         hideLoading();
         showToast('Error: ' + (error.result?.error?.message || error.message), 'error');
     }
@@ -286,15 +314,17 @@ async function saveToGoogleSheets(sale) {
 
         await gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-            range: 'Ventas!A:K',
+            range: `${CONFIG.SHEET_NAME}!A:K`,
             valueInputOption: 'RAW',
             insertDataOption: 'INSERT_ROWS',
             resource: { values: [row] }
         });
 
+        console.log('✅ Venta guardada en Google Sheets');
         return true;
+        
     } catch (error) {
-        console.error('Error guardando:', error);
+        console.error('❌ Error guardando en Google Sheets:', error);
         return false;
     }
 }
@@ -306,35 +336,38 @@ async function syncFromGoogleSheets() {
     }
 
     try {
-        showLoading('Sincronizando datos...');
+        showLoading('Sincronizando datos desde la nube...');
 
+        // Verificar que la hoja existe
         const spreadsheet = await gapi.client.sheets.spreadsheets.get({
             spreadsheetId: CONFIG.GOOGLE_SHEET_ID
         });
 
         const sheets = spreadsheet.result.sheets || [];
-        const ventasSheet = sheets.find(s => s.properties.title === 'Ventas');
+        const ventasSheet = sheets.find(s => s.properties.title === CONFIG.SHEET_NAME);
 
         if (!ventasSheet) {
             hideLoading();
-            showToast('No existe la hoja "Ventas". Configúrala primero.', 'warning');
+            showToast(`No existe la hoja "${CONFIG.SHEET_NAME}". Configúrala primero.`, 'warning');
             return;
         }
 
+        // Obtener datos
         const response = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-            range: 'Ventas!A2:K10000'
+            range: `${CONFIG.SHEET_NAME}!A2:K10000`
         });
 
         const rows = response.result.values || [];
 
         if (rows.length === 0) {
             hideLoading();
-            showToast('La hoja está vacía', 'warning');
+            showToast('La hoja está vacía. Realiza algunas ventas primero.', 'warning');
             updateStats();
             return;
         }
 
+        // Procesar filas
         state.salesHistory = rows.map(row => {
             const productos = (row[3] || '').split(', ').filter(p => p);
             const acompañamientos = (row[4] || '').split(', ');
@@ -358,7 +391,7 @@ async function syncFromGoogleSheets() {
                 if (dateStr.includes('/')) {
                     const parts = dateStr.split('/');
                     if (parts.length === 3) {
-                        timestamp = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${timeStr || '00:00:00'}`);
+                        timestamp = new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}T${timeStr || '00:00:00'}`);
                     }
                 }
                 if (isNaN(timestamp.getTime())) timestamp = new Date();
@@ -378,6 +411,7 @@ async function syncFromGoogleSheets() {
             };
         }).filter(sale => sale.orderNumber > 0);
 
+        // Actualizar número de orden
         if (state.salesHistory.length > 0) {
             const maxOrder = Math.max(...state.salesHistory.map(s => s.orderNumber));
             state.orderNumber = maxOrder + 1;
@@ -387,9 +421,10 @@ async function syncFromGoogleSheets() {
         saveState();
         updateStats();
         hideLoading();
-        showToast(`✅ Sincronizado: ${state.salesHistory.length} ventas`, 'success');
+        showToast(`✅ Sincronizado: ${state.salesHistory.length} ventas cargadas`, 'success');
+        
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error sincronizando:', error);
         hideLoading();
         showToast('Error: ' + (error.result?.error?.message || error.message), 'error');
     }
@@ -397,8 +432,11 @@ async function syncFromGoogleSheets() {
 
 // ==================== NAVEGACIÓN ====================
 function showSection(section) {
+    // Actualizar tabs
     document.getElementById('tabPOS').classList.remove('active');
     document.getElementById('tabStats').classList.remove('active');
+    
+    // Actualizar secciones
     document.getElementById('posSection').classList.remove('active');
     document.getElementById('statsSection').classList.remove('active');
     
@@ -415,6 +453,8 @@ function showSection(section) {
 // ==================== CATEGORÍAS Y PRODUCTOS ====================
 function renderCategories() {
     const nav = document.getElementById('categoryNav');
+    if (!nav) return;
+    
     nav.innerHTML = Object.keys(CATEGORIES).map(key => `
         <button class="category-btn ${key === state.currentCategory ? 'active' : ''}" 
                 onclick="changeCategory('${key}')">
@@ -432,6 +472,8 @@ function changeCategory(category) {
 
 function renderProducts(category) {
     const grid = document.getElementById('productsGrid');
+    if (!grid) return;
+    
     const items = PRODUCTS[category];
 
     grid.innerHTML = items.map(product => `
@@ -446,6 +488,8 @@ function handleProductClick(productId) {
     const allProducts = Object.values(PRODUCTS).flat();
     const product = allProducts.find(p => p.id === productId);
     
+    if (!product) return;
+    
     if (product.hasSide) {
         showSideModal(product);
     } else {
@@ -456,11 +500,16 @@ function handleProductClick(productId) {
 // ==================== MODAL ACOMPAÑAMIENTO ====================
 function showSideModal(product) {
     state.pendingProduct = product;
-    document.getElementById('sideModalProduct').textContent = product.name;
     
-    document.getElementById('sideOptions').innerHTML = SIDE_OPTIONS.map(side => `
-        <div class="side-option" onclick="selectSide('${side}')">${side}</div>
-    `).join('');
+    const productEl = document.getElementById('sideModalProduct');
+    if (productEl) productEl.textContent = product.name;
+    
+    const optionsEl = document.getElementById('sideOptions');
+    if (optionsEl) {
+        optionsEl.innerHTML = SIDE_OPTIONS.map(side => `
+            <div class="side-option" onclick="selectSide('${side}')">${side}</div>
+        `).join('');
+    }
     
     document.getElementById('sideModal').classList.add('active');
 }
@@ -518,14 +567,18 @@ function removeFromCart(cartItemId) {
 }
 
 function clearCart() {
-    if (state.cart.length > 0 && confirm('¿Limpiar el carrito?')) {
-        state.cart = [];
-        updateCart();
+    if (state.cart.length > 0) {
+        if (confirm('¿Limpiar el carrito?')) {
+            state.cart = [];
+            updateCart();
+        }
     }
 }
 
 function updateCart() {
     const container = document.getElementById('cartItems');
+    if (!container) return;
+    
     const total = calculateTotal();
     
     if (state.cart.length === 0) {
@@ -565,6 +618,8 @@ function calculateTotal() {
 
 // ==================== PAGO ====================
 function showPaymentModal() {
+    if (state.cart.length === 0) return;
+    
     const total = calculateTotal();
     document.getElementById('paymentTotal').textContent = `Bs. ${total.toFixed(2)}`;
     document.getElementById('amountReceived').value = '';
@@ -582,7 +637,8 @@ function closePaymentModal() {
 
 function setQuickAmount(amount) {
     const total = calculateTotal();
-    document.getElementById('amountReceived').value = amount === 'exact' ? total.toFixed(2) : amount;
+    const input = document.getElementById('amountReceived');
+    input.value = amount === 'exact' ? total.toFixed(2) : amount;
     calculateChange();
 }
 
@@ -614,6 +670,7 @@ async function confirmPayment() {
     const total = calculateTotal();
     const now = new Date();
     
+    // Crear objeto de venta con copia del carrito
     const sale = {
         orderNumber: state.orderNumber,
         items: [...state.cart],
@@ -642,9 +699,16 @@ async function confirmPayment() {
     if (state.isGoogleConnected) {
         syncStatus.innerHTML = '⏳ Guardando en Google Sheets...';
         syncStatus.style.color = '#64748b';
+        
         const saved = await saveToGoogleSheets(sale);
-        syncStatus.innerHTML = saved ? '✅ Guardado en la nube' : '⚠️ Error en nube (guardado local OK)';
-        syncStatus.style.color = saved ? '#00c853' : '#ff9100';
+        
+        if (saved) {
+            syncStatus.innerHTML = '✅ Guardado en la nube';
+            syncStatus.style.color = '#00c853';
+        } else {
+            syncStatus.innerHTML = '⚠️ Error en nube (guardado local OK)';
+            syncStatus.style.color = '#ff9100';
+        }
     } else {
         syncStatus.innerHTML = '💾 Guardado localmente';
         syncStatus.style.color = '#64748b';
@@ -692,39 +756,44 @@ function closeSuccessModal() {
 // ==================== ESTADÍSTICAS ====================
 function initDateFilters() {
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('dateFrom').value = today;
-    document.getElementById('dateTo').value = today;
+    const dateFrom = document.getElementById('dateFrom');
+    const dateTo = document.getElementById('dateTo');
+    
+    if (dateFrom) dateFrom.value = today;
+    if (dateTo) dateTo.value = today;
 }
 
 function setQuickFilter(period) {
+    // Actualizar botones activos
     document.querySelectorAll('.chip').forEach(btn => btn.classList.remove('active'));
-    document.querySelector(`[data-filter="${period}"]`).classList.add('active');
+    const activeBtn = document.querySelector(`[data-filter="${period}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
 
     const today = new Date();
     const dateTo = document.getElementById('dateTo');
     const dateFrom = document.getElementById('dateFrom');
 
-    dateTo.value = today.toISOString().split('T')[0];
+    if (dateTo) dateTo.value = today.toISOString().split('T')[0];
 
+    let fromDate = new Date(today);
+    
     switch(period) {
         case 'today':
-            dateFrom.value = today.toISOString().split('T')[0];
+            // Ya está en today
             break;
         case 'week':
-            const weekAgo = new Date(today);
-            weekAgo.setDate(weekAgo.getDate() - 7);
-            dateFrom.value = weekAgo.toISOString().split('T')[0];
+            fromDate.setDate(fromDate.getDate() - 7);
             break;
         case 'month':
-            const monthAgo = new Date(today);
-            monthAgo.setMonth(monthAgo.getMonth() - 1);
-            dateFrom.value = monthAgo.toISOString().split('T')[0];
+            fromDate.setMonth(fromDate.getMonth() - 1);
             break;
         case 'all':
-            dateFrom.value = '2020-01-01';
+            fromDate = new Date('2020-01-01');
             break;
     }
-
+    
+    if (dateFrom) dateFrom.value = fromDate.toISOString().split('T')[0];
+    
     updateStats();
 }
 
@@ -733,8 +802,13 @@ function applyFilters() {
 }
 
 function getFilteredSales() {
-    const dateFrom = new Date(document.getElementById('dateFrom').value);
-    const dateTo = new Date(document.getElementById('dateTo').value);
+    const dateFromEl = document.getElementById('dateFrom');
+    const dateToEl = document.getElementById('dateTo');
+    
+    if (!dateFromEl || !dateToEl) return state.salesHistory;
+    
+    const dateFrom = new Date(dateFromEl.value);
+    const dateTo = new Date(dateToEl.value);
     dateTo.setHours(23, 59, 59, 999);
 
     return state.salesHistory.filter(sale => {
@@ -746,7 +820,7 @@ function getFilteredSales() {
 function updateStats() {
     const filteredSales = getFilteredSales();
     
-    // KPIs
+    // Calcular KPIs
     const totalSales = filteredSales.reduce((sum, sale) => sum + sale.total, 0);
     const orderCount = filteredSales.length;
     const avgTicket = orderCount > 0 ? totalSales / orderCount : 0;
@@ -754,11 +828,16 @@ function updateStats() {
         return sum + sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
     }, 0);
 
-    // Animar valores
-    animateValue('kpiSales', totalSales, 'Bs. ');
-    animateValue('kpiOrders', orderCount);
-    animateValue('kpiAvg', avgTicket, 'Bs. ');
-    animateValue('kpiProducts', productsSold);
+    // Actualizar KPIs en el DOM
+    const kpiSales = document.getElementById('kpiSales');
+    const kpiOrders = document.getElementById('kpiOrders');
+    const kpiAvg = document.getElementById('kpiAvg');
+    const kpiProducts = document.getElementById('kpiProducts');
+    
+    if (kpiSales) kpiSales.textContent = `Bs. ${totalSales.toFixed(2)}`;
+    if (kpiOrders) kpiOrders.textContent = orderCount;
+    if (kpiAvg) kpiAvg.textContent = `Bs. ${avgTicket.toFixed(2)}`;
+    if (kpiProducts) kpiProducts.textContent = productsSold;
 
     // Actualizar gráficos
     updateSalesChart(filteredSales);
@@ -769,13 +848,13 @@ function updateStats() {
     updateSalesHistory(filteredSales);
 }
 
-function animateValue(elementId, value, prefix = '') {
-    const element = document.getElementById(elementId);
-    const isDecimal = value % 1 !== 0;
-    element.textContent = prefix + (isDecimal ? value.toFixed(2) : value);
-}
-
 function updateSalesChart(sales) {
+    const canvas = document.getElementById('salesChart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Agrupar ventas por día
     const salesByDay = {};
     sales.forEach(sale => {
         const date = sale.date;
@@ -786,8 +865,7 @@ function updateSalesChart(sales) {
     const labels = Object.keys(salesByDay).sort();
     const data = labels.map(date => salesByDay[date]);
 
-    const ctx = document.getElementById('salesChart').getContext('2d');
-    
+    // Destruir gráfico anterior si existe
     if (salesChart) salesChart.destroy();
 
     salesChart = new Chart(ctx, {
@@ -802,10 +880,11 @@ function updateSalesChart(sales) {
                 fill: true,
                 tension: 0.4,
                 borderWidth: 3,
-                pointRadius: 5,
+                pointRadius: 6,
                 pointBackgroundColor: '#ff6f00',
                 pointBorderColor: '#ffffff',
-                pointBorderWidth: 2
+                pointBorderWidth: 2,
+                pointHoverRadius: 8
             }]
         },
         options: {
@@ -819,8 +898,9 @@ function updateSalesChart(sales) {
                     bodyColor: '#ffffff',
                     padding: 12,
                     cornerRadius: 8,
+                    displayColors: false,
                     callbacks: {
-                        label: ctx => `Bs. ${ctx.raw.toFixed(2)}`
+                        label: ctx => `Ventas: Bs. ${ctx.raw.toFixed(2)}`
                     }
                 }
             },
@@ -828,17 +908,31 @@ function updateSalesChart(sales) {
                 y: {
                     beginAtZero: true,
                     grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                    ticks: { callback: v => `Bs. ${v}` }
+                    ticks: { 
+                        callback: v => `Bs. ${v}`,
+                        font: { family: 'Poppins' }
+                    }
                 },
                 x: {
-                    grid: { display: false }
+                    grid: { display: false },
+                    ticks: { font: { family: 'Poppins' } }
                 }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
             }
         }
     });
 }
 
 function updateCategoryChart(sales) {
+    const canvas = document.getElementById('categoryChart');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Agrupar ventas por categoría
     const salesByCategory = { milanesas: 0, pollos: 0, extras: 0, bebidas: 0 };
 
     sales.forEach(sale => {
@@ -849,8 +943,7 @@ function updateCategoryChart(sales) {
         });
     });
 
-    const ctx = document.getElementById('categoryChart').getContext('2d');
-    
+    // Destruir gráfico anterior si existe
     if (categoryChart) categoryChart.destroy();
 
     categoryChart = new Chart(ctx, {
@@ -862,20 +955,26 @@ function updateCategoryChart(sales) {
                 backgroundColor: ['#ff6f00', '#ffc107', '#00c853', '#2979ff'],
                 borderWidth: 4,
                 borderColor: '#ffffff',
-                hoverOffset: 10
+                hoverOffset: 15,
+                hoverBorderWidth: 2
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            cutout: '60%',
+            cutout: '55%',
             plugins: {
                 legend: {
                     position: 'bottom',
                     labels: {
                         padding: 20,
                         usePointStyle: true,
-                        font: { size: 12, family: 'Poppins' }
+                        pointStyle: 'circle',
+                        font: { 
+                            size: 12, 
+                            family: 'Poppins',
+                            weight: '500'
+                        }
                     }
                 },
                 tooltip: {
@@ -892,6 +991,10 @@ function updateCategoryChart(sales) {
 }
 
 function updateTopProducts(sales) {
+    const tbody = document.getElementById('topProductsBody');
+    if (!tbody) return;
+    
+    // Agrupar ventas por producto
     const productSales = {};
 
     sales.forEach(sale => {
@@ -909,17 +1012,16 @@ function updateTopProducts(sales) {
         });
     });
 
+    // Ordenar por cantidad vendida
     const sorted = Object.values(productSales)
         .sort((a, b) => b.quantity - a.quantity)
         .slice(0, 10);
-    
-    const tbody = document.getElementById('topProductsBody');
     
     if (sorted.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="5" class="no-data">
-                    <div class="no-data-icon">📊</div>
+                    <span class="no-data-icon">📊</span>
                     <p>No hay datos disponibles</p>
                 </td>
             </tr>
@@ -927,25 +1029,32 @@ function updateTopProducts(sales) {
         return;
     }
 
-    tbody.innerHTML = sorted.map((product, i) => `
-        <tr>
-            <td><span class="rank-badge ${i < 3 ? `rank-${i+1}` : 'rank-default'}">${i+1}</span></td>
-            <td><strong>${product.name}</strong></td>
-            <td>${CATEGORIES[product.category]?.icon || '📦'} ${CATEGORIES[product.category]?.name || product.category}</td>
-            <td>${product.quantity}</td>
-            <td><strong>Bs. ${product.revenue.toFixed(2)}</strong></td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = sorted.map((product, i) => {
+        const cat = CATEGORIES[product.category];
+        const catDisplay = cat ? `${cat.icon} ${cat.name}` : product.category;
+        const rankClass = i < 3 ? `rank-${i+1}` : 'rank-default';
+        
+        return `
+            <tr>
+                <td><span class="rank-badge ${rankClass}">${i+1}</span></td>
+                <td><strong>${product.name}</strong></td>
+                <td>${catDisplay}</td>
+                <td>${product.quantity}</td>
+                <td><strong>Bs. ${product.revenue.toFixed(2)}</strong></td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function updateSalesHistory(sales) {
     const tbody = document.getElementById('salesHistoryBody');
+    if (!tbody) return;
     
     if (sales.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="7" class="no-data">
-                    <div class="no-data-icon">🧾</div>
+                    <span class="no-data-icon">🧾</span>
                     <p>No hay ventas registradas</p>
                 </td>
             </tr>
@@ -953,9 +1062,10 @@ function updateSalesHistory(sales) {
         return;
     }
 
+    // Ordenar por fecha descendente
     const sorted = [...sales].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    tbody.innerHTML = sorted.slice(0, 50).map(sale => {
+    tbody.innerHTML = sorted.slice(0, 100).map(sale => {
         const itemCount = sale.items.reduce((sum, item) => sum + item.quantity, 0);
         return `
             <tr>
@@ -979,18 +1089,31 @@ function exportToCSV() {
         return;
     }
 
-    let csv = 'Pedido,Fecha,Hora,Productos,Total,Pago,Cambio\n';
+    // Crear CSV
+    let csv = 'Pedido,Fecha,Hora,Productos,Total,Pago Recibido,Cambio\n';
     
     filteredSales.forEach(sale => {
         const items = sale.items.map(i => `${i.name}${i.side ? ' + ' + i.side : ''} x${i.quantity}`).join('; ');
-        csv += `${sale.orderNumber},${sale.date},${sale.time},"${items}",${sale.total.toFixed(2)},${sale.received?.toFixed(2) || ''},${sale.change?.toFixed(2) || ''}\n`;
+        const row = [
+            sale.orderNumber,
+            sale.date,
+            sale.time,
+            `"${items}"`,
+            sale.total.toFixed(2),
+            sale.received?.toFixed(2) || '',
+            sale.change?.toFixed(2) || ''
+        ].join(',');
+        csv += row + '\n';
     });
 
+    // Descargar archivo
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `ventas_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     
     showToast('Archivo CSV descargado', 'success');
 }
@@ -1001,26 +1124,39 @@ function showToast(message, type = 'success') {
     const icon = document.getElementById('toastIcon');
     const text = document.getElementById('toastMessage');
 
+    if (!toast || !icon || !text) return;
+
     toast.className = 'toast show';
-    if (type === 'error') {
-        toast.classList.add('error');
-        icon.textContent = '❌';
-    } else if (type === 'warning') {
-        toast.classList.add('warning');
-        icon.textContent = '⚠️';
-    } else {
-        icon.textContent = '✅';
+    
+    switch(type) {
+        case 'error':
+            toast.classList.add('error');
+            icon.textContent = '❌';
+            break;
+        case 'warning':
+            toast.classList.add('warning');
+            icon.textContent = '⚠️';
+            break;
+        default:
+            icon.textContent = '✅';
     }
+    
     text.textContent = message;
 
-    setTimeout(() => toast.classList.remove('show'), 3000);
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3500);
 }
 
 function showLoading(text = 'Cargando...') {
-    document.getElementById('loadingText').textContent = text;
-    document.getElementById('loadingOverlay').classList.add('active');
+    const loadingText = document.getElementById('loadingText');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    
+    if (loadingText) loadingText.textContent = text;
+    if (loadingOverlay) loadingOverlay.classList.add('active');
 }
 
 function hideLoading() {
-    document.getElementById('loadingOverlay').classList.remove('active');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.remove('active');
 }
