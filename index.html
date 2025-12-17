@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-
     <title>🍗 Sistema de Caja - Milanesas & Pollo</title>
 
     <!-- Fuentes -->
@@ -14,12 +13,14 @@
     <!-- Estilos -->
     <link rel="stylesheet" href="styles.css">
 
-    <!-- ==================== SCRIPTS PRINCIPALES (ORDEN CRÍTICO) ==================== -->
-    <!-- CONFIG debe cargarse SIEMPRE antes que script.js -->
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- CONFIG debe cargarse ANTES que script.js -->
     <script src="config.js"></script>
     <script src="script.js"></script>
 
-    <!-- ==================== GOOGLE APIS ==================== -->
+    <!-- Google APIs -->
     <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </head>
@@ -122,7 +123,124 @@
 
 <!-- ==================== SECCIÓN ESTADÍSTICAS ==================== -->
 <section class="stats-section" id="statsSection">
-    <!-- Todo el contenido de estadísticas se mantiene exactamente igual -->
+
+    <!-- Filtros -->
+    <div class="stats-filters">
+        <div class="filter-group">
+            <div class="date-range">
+                <div class="date-field">
+                    <label>Desde</label>
+                    <input type="date" id="dateFrom" class="date-input">
+                </div>
+                <div class="date-field">
+                    <label>Hasta</label>
+                    <input type="date" id="dateTo" class="date-input">
+                </div>
+                <button class="btn-filter" onclick="applyFilters()">🔍 Filtrar</button>
+            </div>
+        </div>
+        <div class="quick-filters">
+            <button class="chip active" data-filter="today" onclick="setQuickFilter('today')">Hoy</button>
+            <button class="chip" data-filter="week" onclick="setQuickFilter('week')">Semana</button>
+            <button class="chip" data-filter="month" onclick="setQuickFilter('month')">Mes</button>
+            <button class="chip" data-filter="all" onclick="setQuickFilter('all')">Todo</button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+        <div class="kpi-card orange">
+            <div class="kpi-icon">💰</div>
+            <div class="kpi-data">
+                <span class="kpi-value" id="kpiSales">Bs. 0.00</span>
+                <span class="kpi-label">Ventas Totales</span>
+            </div>
+        </div>
+        <div class="kpi-card blue">
+            <div class="kpi-icon">🧾</div>
+            <div class="kpi-data">
+                <span class="kpi-value" id="kpiOrders">0</span>
+                <span class="kpi-label">Pedidos</span>
+            </div>
+        </div>
+        <div class="kpi-card green">
+            <div class="kpi-icon">📈</div>
+            <div class="kpi-data">
+                <span class="kpi-value" id="kpiAvg">Bs. 0.00</span>
+                <span class="kpi-label">Ticket Promedio</span>
+            </div>
+        </div>
+        <div class="kpi-card purple">
+            <div class="kpi-icon">🍗</div>
+            <div class="kpi-data">
+                <span class="kpi-value" id="kpiProducts">0</span>
+                <span class="kpi-label">Productos</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones de Sincronización -->
+    <div class="sync-actions">
+        <button class="btn-sync setup" onclick="setupGoogleSheet()">⚙️ Configurar Hoja</button>
+        <button class="btn-sync primary" onclick="syncFromGoogleSheets()">🔄 Sincronizar Datos</button>
+        <button class="btn-sync" onclick="exportToCSV()">📥 Exportar CSV</button>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="charts-grid">
+        <div class="chart-card">
+            <h3>📈 Ventas por Día</h3>
+            <div class="chart-wrapper">
+                <canvas id="salesChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h3>🥧 Ventas por Categoría</h3>
+            <div class="chart-wrapper">
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Productos -->
+    <div class="data-card">
+        <h3>🏆 Productos Más Vendidos</h3>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Producto</th>
+                        <th>Categoría</th>
+                        <th>Cantidad</th>
+                        <th>Ingresos</th>
+                    </tr>
+                </thead>
+                <tbody id="topProductsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Historial -->
+    <div class="data-card">
+        <h3>📋 Historial de Ventas</h3>
+        <div class="table-responsive">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Pedido</th>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Items</th>
+                        <th>Total</th>
+                        <th>Pago</th>
+                        <th>Cambio</th>
+                    </tr>
+                </thead>
+                <tbody id="salesHistoryBody"></tbody>
+            </table>
+        </div>
+    </div>
 </section>
 
 </main>
@@ -148,7 +266,102 @@
             <h2>💵 Procesar Pago</h2>
             <button class="modal-close" onclick="closePaymentModal()">&times;</button>
         </div>
+
+        <div class="payment-total">
+            <span class="label">Total a Cobrar</span>
+            <span class="amount" id="paymentTotal">Bs. 0.00</span>
+        </div>
+
+        <div class="payment-input-section">
+            <label>Monto Recibido</label>
+            <input type="number" id="amountReceived" class="payment-input" placeholder="0.00" step="0.01" min="0" oninput="calculateChange()">
+            <div class="quick-amounts">
+                <button onclick="setQuickAmount(50)">Bs. 50</button>
+                <button onclick="setQuickAmount(100)">Bs. 100</button>
+                <button onclick="setQuickAmount(200)">Bs. 200</button>
+                <button onclick="setQuickAmount('exact')">Exacto</button>
+            </div>
+        </div>
+
+        <div class="change-display" id="changeDisplay">
+            <span class="label">Cambio</span>
+            <span class="amount" id="changeAmount">Bs. 0.00</span>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-modal secondary" onclick="closePaymentModal()">Cancelar</button>
+            <button class="btn-modal primary" id="btnConfirmPay" onclick="confirmPayment()" disabled>✅ Confirmar Pago</button>
+        </div>
     </div>
+</div>
+
+<!-- Modal de Éxito -->
+<div class="modal-overlay" id="successModal">
+    <div class="modal-container success-modal">
+        <div class="success-icon">✅</div>
+        <h2>¡Venta Registrada!</h2>
+        <div class="success-details">
+            <div class="detail-row">
+                <span>Total:</span>
+                <strong id="successTotal">Bs. 0.00</strong>
+            </div>
+            <div class="detail-row">
+                <span>Recibido:</span>
+                <span id="successReceived">Bs. 0.00</span>
+            </div>
+            <div class="detail-row highlight">
+                <span>Cambio:</span>
+                <strong id="successChange">Bs. 0.00</strong>
+            </div>
+        </div>
+        <p class="sync-status" id="syncStatus"></p>
+        <div class="modal-actions">
+            <button class="btn-modal secondary" onclick="printTicket()">🖨️ Imprimir</button>
+            <button class="btn-modal primary" onclick="closeSuccessModal()">Nueva Venta</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== TICKET PARA IMPRIMIR ==================== -->
+<div class="ticket" id="ticket">
+    <div class="ticket-header">
+        <div class="ticket-logo">🍗</div>
+        <div class="ticket-title">MILANESAS & POLLO</div>
+        <div class="ticket-subtitle">A LA BARBACOA</div>
+        <div class="ticket-divider">================================</div>
+        <div class="ticket-info">
+            <div id="ticketDate"></div>
+            <div id="ticketTime"></div>
+            <div>Pedido: <strong id="ticketNumber"></strong></div>
+        </div>
+        <div class="ticket-divider">================================</div>
+    </div>
+    <div class="ticket-items" id="ticketItems"></div>
+    <div class="ticket-divider">--------------------------------</div>
+    <div class="ticket-totals">
+        <div class="ticket-total">TOTAL: <strong id="ticketTotal"></strong></div>
+        <div class="ticket-payment">
+            <div>Recibido: <span id="ticketReceived"></span></div>
+            <div>Cambio: <span id="ticketChange"></span></div>
+        </div>
+    </div>
+    <div class="ticket-divider">================================</div>
+    <div class="ticket-footer">
+        <div>¡GRACIAS POR SU COMPRA!</div>
+        <div class="ticket-note">Este documento no es factura</div>
+    </div>
+</div>
+
+<!-- ==================== TOAST ==================== -->
+<div class="toast" id="toast">
+    <span class="toast-icon" id="toastIcon">✅</span>
+    <span class="toast-message" id="toastMessage"></span>
+</div>
+
+<!-- ==================== LOADING ==================== -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Cargando...</div>
 </div>
 
 </body>
