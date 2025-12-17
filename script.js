@@ -1,3 +1,21 @@
+// ========================================
+// CONFIGURACIÓN DE GOOGLE SHEETS API
+// Lee desde config.js
+// ========================================
+const CLIENT_ID = CONFIG.CLIENT_ID;
+const API_KEY = CONFIG.API_KEY;
+const SPREADSHEET_ID = CONFIG.GOOGLE_SHEET_ID;
+const SHEET_NAME = CONFIG.SHEET_NAME || 'Ventas';
+const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';
+
+// Variables de autenticación
+let tokenClient;
+let gapiInited = false;
+let gisInited = false;
+let usuarioGoogle = null;
+let emailUsuario = '';
+
 // ==================== PRODUCTOS DEL MENÚ ====================
 const PRODUCTS = {
     milanesas: [
@@ -44,183 +62,178 @@ const CATEGORIES = {
 const SIDE_OPTIONS = ['Arroz Blanco', 'Fideo al Pesto', 'Puré de Papa', 'Ensalada Mixta'];
 
 // ==================== ESTADO GLOBAL ====================
-let state = {
-    cart: [],
-    currentCategory: 'milanesas',
-    orderNumber: 1,
-    salesHistory: [],
-    pendingProduct: null,
-    paymentInfo: { received: 0, change: 0 },
-    isGoogleConnected: false,
-    gapiInited: false,
-    gisInited: false
-};
+let cart = [];
+let currentCategory = 'milanesas';
+let orderNumber = 1;
+let salesHistory = [];
+let pendingProduct = null;
+let paymentInfo = { received: 0, change: 0 };
 
-let tokenClient = null;
 let salesChart = null;
 let categoryChart = null;
 
-// ==================== INICIALIZACIÓN ====================
-document.addEventListener('DOMContentLoaded', init);
-
-function init() {
-    loadState();
-    renderCategories();
-    renderProducts(state.currentCategory);
-    updateCart();
-    updateOrderNumber();
-    initDateFilters();
-    updateDateTime();
-    setInterval(updateDateTime, 1000);
-    updateStats();
-    
-    console.log('✅ Sistema POS inicializado correctamente');
-}
-
-function loadState() {
-    const savedOrder = localStorage.getItem('pos_orderNumber');
-    if (savedOrder) state.orderNumber = parseInt(savedOrder);
-    
-    const savedHistory = localStorage.getItem('pos_salesHistory');
-    if (savedHistory) {
-        try {
-            state.salesHistory = JSON.parse(savedHistory);
-        } catch (e) {
-            state.salesHistory = [];
-        }
-    }
-}
-
-function saveState() {
-    localStorage.setItem('pos_orderNumber', state.orderNumber);
-    localStorage.setItem('pos_salesHistory', JSON.stringify(state.salesHistory));
-}
-
-function updateDateTime() {
-    const now = new Date();
-    const options = { 
-        weekday: 'short', 
-        day: '2-digit', 
-        month: 'short',
-        hour: '2-digit', 
-        minute: '2-digit' 
-    };
-    const datetimeEl = document.getElementById('datetime');
-    if (datetimeEl) {
-        datetimeEl.textContent = now.toLocaleDateString('es-BO', options);
-    }
-}
-
-function updateOrderNumber() {
-    const orderEl = document.getElementById('orderNumber');
-    if (orderEl) {
-        orderEl.textContent = `#${state.orderNumber.toString().padStart(4, '0')}`;
-    }
-}
-
-// ==================== GOOGLE API ====================
+// ========================================
+// INICIALIZACIÓN DE GOOGLE API
+// ========================================
 function gapiLoaded() {
-    gapi.load('client', initGapiClient);
+    gapi.load('client', initializeGapiClient);
 }
 
-async function initGapiClient() {
+async function initializeGapiClient() {
     try {
         await gapi.client.init({
-            apiKey: CONFIG.API_KEY,
-            discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+            apiKey: API_KEY,
+            discoveryDocs: [DISCOVERY_DOC],
         });
-        state.gapiInited = true;
-        console.log('✅ GAPI inicializado');
-        checkSavedToken();
-    } catch (err) {
-        console.error('❌ Error GAPI:', err);
-        showToast('Error al inicializar Google API', 'error');
+        gapiInited = true;
+        console.log('✅ Google API inicializada');
+        checkReady();
+    } catch (error) {
+        console.error('❌ Error inicializando GAPI:', error);
     }
 }
 
 function gisLoaded() {
-    try {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: CONFIG.CLIENT_ID,
-            scope: CONFIG.SCOPES,
-            callback: handleAuthCallback
-        });
-        state.gisInited = true;
-        console.log('✅ GIS inicializado');
-        checkSavedToken();
-    } catch (err) {
-        console.error('❌ Error GIS:', err);
-    }
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: handleTokenResponse,
+    });
+    gisInited = true;
+    console.log('✅ Google Identity Services cargado');
+    checkReady();
 }
 
-function handleAuthCallback(response) {
-    if (response.error !== undefined) {
-        console.error('Error de autenticación:', response);
-        showToast('Error al conectar con Google: ' + response.error, 'error');
-        return;
-    }
-    
-    // Guardar token
-    localStorage.setItem('pos_googleToken', response.access_token);
-    updateGoogleStatus(true);
-    showToast('¡Conectado a Google Sheets!', 'success');
-}
-
-function checkSavedToken() {
-    if (state.gapiInited && state.gisInited) {
+function checkReady() {
+    if (gapiInited && gisInited) {
+        console.log('🍗 Sistema POS listo para autenticación');
+        // Verificar si hay un token guardado
         const savedToken = localStorage.getItem('pos_googleToken');
         if (savedToken) {
             gapi.client.setToken({ access_token: savedToken });
-            verifyToken();
+            verificarTokenGuardado();
         }
     }
 }
 
-async function verifyToken() {
+async function verificarTokenGuardado() {
     try {
+        // Intentar una operación simple para verificar el token
         await gapi.client.sheets.spreadsheets.get({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID
+            spreadsheetId: SPREADSHEET_ID
         });
+        usuarioGoogle = true;
         updateGoogleStatus(true);
-        console.log('✅ Token válido');
+        obtenerEmailUsuario();
+        console.log('✅ Token guardado válido');
     } catch (error) {
-        console.log('⚠️ Token expirado o inválido');
+        console.log('⚠️ Token expirado, se requiere nueva autenticación');
         localStorage.removeItem('pos_googleToken');
         updateGoogleStatus(false);
     }
 }
 
-function handleGoogleAuth() {
-    if (!state.gapiInited || !state.gisInited) {
-        showToast('Esperando inicialización de Google...', 'warning');
+function handleTokenResponse(resp) {
+    if (resp.error !== undefined) {
+        console.error('❌ Error de autenticación:', resp);
+        showToast('Error al iniciar sesión con Google: ' + resp.error, 'error');
         return;
     }
     
-    if (state.isGoogleConnected) {
+    // Guardar token
+    localStorage.setItem('pos_googleToken', resp.access_token);
+    usuarioGoogle = true;
+    console.log('✅ Autenticado con Google');
+    console.log('📊 Conectando a hoja ID:', SPREADSHEET_ID);
+    
+    updateGoogleStatus(true);
+    obtenerEmailUsuario();
+}
+
+async function obtenerEmailUsuario() {
+    try {
+        const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+                'Authorization': 'Bearer ' + gapi.client.getToken().access_token
+            }
+        });
+        const userInfo = await response.json();
+        emailUsuario = userInfo.email;
+        console.log('👤 Usuario:', emailUsuario);
+        
+        const userEmailEl = document.getElementById('userEmail');
+        if (userEmailEl) {
+            userEmailEl.textContent = '👤 ' + emailUsuario;
+        }
+        
+        // Verificar que la hoja existe
+        verificarHojaVentas();
+        
+    } catch (error) {
+        console.error('Error obteniendo email:', error);
+        emailUsuario = 'desconocido';
+    }
+}
+
+// ========================================
+// VERIFICAR Y CREAR HOJA DE VENTAS
+// ========================================
+async function verificarHojaVentas() {
+    try {
+        const response = await gapi.client.sheets.spreadsheets.get({
+            spreadsheetId: SPREADSHEET_ID
+        });
+        
+        const hojas = response.result.sheets.map(s => s.properties.title);
+        console.log('📋 Hojas existentes:', hojas);
+        
+        if (!hojas.includes(SHEET_NAME)) {
+            console.log('⚠️ La hoja "' + SHEET_NAME + '" no existe. Usa "Configurar Hoja" para crearla.');
+        } else {
+            console.log('✅ Hoja "' + SHEET_NAME + '" encontrada');
+            showToast('¡Conectado a Google Sheets!', 'success');
+        }
+        
+    } catch (error) {
+        console.error('Error verificando hojas:', error);
+        showToast('Error accediendo a la hoja: ' + error.message, 'error');
+    }
+}
+
+// ========================================
+// AUTENTICACIÓN DE GOOGLE
+// ========================================
+function handleGoogleAuth() {
+    if (!gapiInited || !gisInited) {
+        showToast('Esperando que cargue Google API...', 'warning');
+        return;
+    }
+    
+    if (usuarioGoogle) {
         // Desconectar
         const token = gapi.client.getToken();
         if (token) {
             google.accounts.oauth2.revoke(token.access_token, () => {
-                console.log('Token revocado');
+                console.log('🔓 Token revocado');
             });
             gapi.client.setToken('');
-            localStorage.removeItem('pos_googleToken');
         }
+        localStorage.removeItem('pos_googleToken');
+        usuarioGoogle = null;
+        emailUsuario = '';
         updateGoogleStatus(false);
+        
+        const userEmailEl = document.getElementById('userEmail');
+        if (userEmailEl) userEmailEl.textContent = '';
+        
         showToast('Desconectado de Google', 'warning');
     } else {
         // Conectar - Solicitar token
-        if (gapi.client.getToken() === null) {
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        } else {
-            tokenClient.requestAccessToken({ prompt: '' });
-        }
+        tokenClient.requestAccessToken({ prompt: 'consent' });
     }
 }
 
 function updateGoogleStatus(connected) {
-    state.isGoogleConnected = connected;
-    
     const dot = document.getElementById('statusDot');
     const text = document.getElementById('statusText');
     const btn = document.getElementById('btnGoogle');
@@ -239,8 +252,11 @@ function updateGoogleStatus(connected) {
     }
 }
 
+// ========================================
+// CONFIGURAR HOJA DE GOOGLE SHEETS
+// ========================================
 async function setupGoogleSheet() {
-    if (!state.isGoogleConnected) {
+    if (!usuarioGoogle) {
         showToast('Primero conecta tu cuenta de Google', 'warning');
         return;
     }
@@ -248,42 +264,40 @@ async function setupGoogleSheet() {
     try {
         showLoading('Configurando hoja de cálculo...');
         
-        // Obtener información del spreadsheet
-        const spreadsheet = await gapi.client.sheets.spreadsheets.get({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID
+        const response = await gapi.client.sheets.spreadsheets.get({
+            spreadsheetId: SPREADSHEET_ID
         });
-
-        const sheets = spreadsheet.result.sheets || [];
-        let ventasSheet = sheets.find(s => s.properties.title === CONFIG.SHEET_NAME);
-
+        
+        const hojas = response.result.sheets.map(s => s.properties.title);
+        
         // Crear hoja si no existe
-        if (!ventasSheet) {
+        if (!hojas.includes(SHEET_NAME)) {
             await gapi.client.sheets.spreadsheets.batchUpdate({
-                spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
+                spreadsheetId: SPREADSHEET_ID,
                 resource: {
-                    requests: [{ 
-                        addSheet: { 
-                            properties: { title: CONFIG.SHEET_NAME } 
-                        } 
+                    requests: [{
+                        addSheet: {
+                            properties: { title: SHEET_NAME }
+                        }
                     }]
                 }
             });
-            console.log('✅ Hoja creada:', CONFIG.SHEET_NAME);
+            console.log('✅ Hoja "' + SHEET_NAME + '" creada');
         }
-
+        
         // Crear encabezados
         const headers = [[
             'ID_Pedido', 'Fecha', 'Hora', 'Productos', 'Acompañamientos', 
-            'Cantidades', 'Categorias', 'Subtotales', 'Total', 'Pago_Recibido', 'Cambio'
+            'Cantidades', 'Categorias', 'Subtotales', 'Total', 'Pago_Recibido', 'Cambio', 'Registrado_Por'
         ]];
-
+        
         await gapi.client.sheets.spreadsheets.values.update({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-            range: `${CONFIG.SHEET_NAME}!A1:K1`,
+            spreadsheetId: SPREADSHEET_ID,
+            range: SHEET_NAME + '!A1:L1',
             valueInputOption: 'RAW',
             resource: { values: headers }
         });
-
+        
         hideLoading();
         showToast('¡Hoja configurada correctamente!', 'success');
         
@@ -294,8 +308,11 @@ async function setupGoogleSheet() {
     }
 }
 
+// ========================================
+// GUARDAR VENTA EN GOOGLE SHEETS
+// ========================================
 async function saveToGoogleSheets(sale) {
-    if (!state.isGoogleConnected) return false;
+    if (!usuarioGoogle) return false;
 
     try {
         const row = [
@@ -309,12 +326,13 @@ async function saveToGoogleSheets(sale) {
             sale.items.map(i => (i.price * i.quantity).toFixed(2)).join(', '),
             sale.total.toFixed(2),
             sale.received.toFixed(2),
-            sale.change.toFixed(2)
+            sale.change.toFixed(2),
+            emailUsuario || 'sistema'
         ];
 
         await gapi.client.sheets.spreadsheets.values.append({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-            range: `${CONFIG.SHEET_NAME}!A:K`,
+            spreadsheetId: SPREADSHEET_ID,
+            range: SHEET_NAME + '!A:L',
             valueInputOption: 'RAW',
             insertDataOption: 'INSERT_ROWS',
             resource: { values: [row] }
@@ -329,8 +347,11 @@ async function saveToGoogleSheets(sale) {
     }
 }
 
+// ========================================
+// SINCRONIZAR DESDE GOOGLE SHEETS
+// ========================================
 async function syncFromGoogleSheets() {
-    if (!state.isGoogleConnected) {
+    if (!usuarioGoogle) {
         showToast('Conecta Google Sheets primero', 'warning');
         return;
     }
@@ -340,22 +361,21 @@ async function syncFromGoogleSheets() {
 
         // Verificar que la hoja existe
         const spreadsheet = await gapi.client.sheets.spreadsheets.get({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID
+            spreadsheetId: SPREADSHEET_ID
         });
 
-        const sheets = spreadsheet.result.sheets || [];
-        const ventasSheet = sheets.find(s => s.properties.title === CONFIG.SHEET_NAME);
+        const hojas = spreadsheet.result.sheets.map(s => s.properties.title);
 
-        if (!ventasSheet) {
+        if (!hojas.includes(SHEET_NAME)) {
             hideLoading();
-            showToast(`No existe la hoja "${CONFIG.SHEET_NAME}". Configúrala primero.`, 'warning');
+            showToast('No existe la hoja "' + SHEET_NAME + '". Configúrala primero.', 'warning');
             return;
         }
 
         // Obtener datos
         const response = await gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-            range: `${CONFIG.SHEET_NAME}!A2:K10000`
+            spreadsheetId: SPREADSHEET_ID,
+            range: SHEET_NAME + '!A2:L10000'
         });
 
         const rows = response.result.values || [];
@@ -368,7 +388,7 @@ async function syncFromGoogleSheets() {
         }
 
         // Procesar filas
-        state.salesHistory = rows.map(row => {
+        salesHistory = rows.map(row => {
             const productos = (row[3] || '').split(', ').filter(p => p);
             const acompañamientos = (row[4] || '').split(', ');
             const cantidades = (row[5] || '').split(', ').map(n => parseInt(n) || 1);
@@ -391,7 +411,7 @@ async function syncFromGoogleSheets() {
                 if (dateStr.includes('/')) {
                     const parts = dateStr.split('/');
                     if (parts.length === 3) {
-                        timestamp = new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}T${timeStr || '00:00:00'}`);
+                        timestamp = new Date(parts[2] + '-' + parts[1].padStart(2, '0') + '-' + parts[0].padStart(2, '0') + 'T' + (timeStr || '00:00:00'));
                     }
                 }
                 if (isNaN(timestamp.getTime())) timestamp = new Date();
@@ -412,16 +432,16 @@ async function syncFromGoogleSheets() {
         }).filter(sale => sale.orderNumber > 0);
 
         // Actualizar número de orden
-        if (state.salesHistory.length > 0) {
-            const maxOrder = Math.max(...state.salesHistory.map(s => s.orderNumber));
-            state.orderNumber = maxOrder + 1;
+        if (salesHistory.length > 0) {
+            const maxOrder = Math.max(...salesHistory.map(s => s.orderNumber));
+            orderNumber = maxOrder + 1;
             updateOrderNumber();
         }
 
         saveState();
         updateStats();
         hideLoading();
-        showToast(`✅ Sincronizado: ${state.salesHistory.length} ventas cargadas`, 'success');
+        showToast('✅ Sincronizado: ' + salesHistory.length + ' ventas cargadas', 'success');
         
     } catch (error) {
         console.error('Error sincronizando:', error);
@@ -430,13 +450,66 @@ async function syncFromGoogleSheets() {
     }
 }
 
+// ==================== INICIALIZACIÓN ====================
+document.addEventListener('DOMContentLoaded', function() {
+    loadState();
+    renderCategories();
+    renderProducts(currentCategory);
+    updateCart();
+    updateOrderNumber();
+    initDateFilters();
+    updateDateTime();
+    setInterval(updateDateTime, 1000);
+    updateStats();
+    
+    console.log('🍗 Sistema POS - Cargando APIs de Google...');
+});
+
+function loadState() {
+    const savedOrder = localStorage.getItem('pos_orderNumber');
+    if (savedOrder) orderNumber = parseInt(savedOrder);
+    
+    const savedHistory = localStorage.getItem('pos_salesHistory');
+    if (savedHistory) {
+        try {
+            salesHistory = JSON.parse(savedHistory);
+        } catch (e) {
+            salesHistory = [];
+        }
+    }
+}
+
+function saveState() {
+    localStorage.setItem('pos_orderNumber', orderNumber);
+    localStorage.setItem('pos_salesHistory', JSON.stringify(salesHistory));
+}
+
+function updateDateTime() {
+    const now = new Date();
+    const options = { 
+        weekday: 'short', 
+        day: '2-digit', 
+        month: 'short',
+        hour: '2-digit', 
+        minute: '2-digit' 
+    };
+    const datetimeEl = document.getElementById('datetime');
+    if (datetimeEl) {
+        datetimeEl.textContent = now.toLocaleDateString('es-BO', options);
+    }
+}
+
+function updateOrderNumber() {
+    const orderEl = document.getElementById('orderNumber');
+    if (orderEl) {
+        orderEl.textContent = '#' + orderNumber.toString().padStart(4, '0');
+    }
+}
+
 // ==================== NAVEGACIÓN ====================
 function showSection(section) {
-    // Actualizar tabs
     document.getElementById('tabPOS').classList.remove('active');
     document.getElementById('tabStats').classList.remove('active');
-    
-    // Actualizar secciones
     document.getElementById('posSection').classList.remove('active');
     document.getElementById('statsSection').classList.remove('active');
     
@@ -455,17 +528,16 @@ function renderCategories() {
     const nav = document.getElementById('categoryNav');
     if (!nav) return;
     
-    nav.innerHTML = Object.keys(CATEGORIES).map(key => `
-        <button class="category-btn ${key === state.currentCategory ? 'active' : ''}" 
-                onclick="changeCategory('${key}')">
-            <span class="category-icon">${CATEGORIES[key].icon}</span>
-            <span class="category-text">${CATEGORIES[key].name}</span>
-        </button>
-    `).join('');
+    nav.innerHTML = Object.keys(CATEGORIES).map(function(key) {
+        return '<button class="category-btn ' + (key === currentCategory ? 'active' : '') + '" onclick="changeCategory(\'' + key + '\')">' +
+            '<span class="category-icon">' + CATEGORIES[key].icon + '</span>' +
+            '<span class="category-text">' + CATEGORIES[key].name + '</span>' +
+        '</button>';
+    }).join('');
 }
 
 function changeCategory(category) {
-    state.currentCategory = category;
+    currentCategory = category;
     renderCategories();
     renderProducts(category);
 }
@@ -476,17 +548,17 @@ function renderProducts(category) {
     
     const items = PRODUCTS[category];
 
-    grid.innerHTML = items.map(product => `
-        <div class="product-card" onclick="handleProductClick(${product.id})">
-            <div class="product-name">${product.name}</div>
-            <div class="product-price">Bs. ${product.price.toFixed(2)}</div>
-        </div>
-    `).join('');
+    grid.innerHTML = items.map(function(product) {
+        return '<div class="product-card" onclick="handleProductClick(' + product.id + ')">' +
+            '<div class="product-name">' + product.name + '</div>' +
+            '<div class="product-price">Bs. ' + product.price.toFixed(2) + '</div>' +
+        '</div>';
+    }).join('');
 }
 
 function handleProductClick(productId) {
     const allProducts = Object.values(PRODUCTS).flat();
-    const product = allProducts.find(p => p.id === productId);
+    const product = allProducts.find(function(p) { return p.id === productId; });
     
     if (!product) return;
     
@@ -499,16 +571,16 @@ function handleProductClick(productId) {
 
 // ==================== MODAL ACOMPAÑAMIENTO ====================
 function showSideModal(product) {
-    state.pendingProduct = product;
+    pendingProduct = product;
     
-    const productEl = document.getElementById('sideModalProduct');
+    var productEl = document.getElementById('sideModalProduct');
     if (productEl) productEl.textContent = product.name;
     
-    const optionsEl = document.getElementById('sideOptions');
+    var optionsEl = document.getElementById('sideOptions');
     if (optionsEl) {
-        optionsEl.innerHTML = SIDE_OPTIONS.map(side => `
-            <div class="side-option" onclick="selectSide('${side}')">${side}</div>
-        `).join('');
+        optionsEl.innerHTML = SIDE_OPTIONS.map(function(side) {
+            return '<div class="side-option" onclick="selectSide(\'' + side + '\')">' + side + '</div>';
+        }).join('');
     }
     
     document.getElementById('sideModal').classList.add('active');
@@ -516,41 +588,41 @@ function showSideModal(product) {
 
 function closeSideModal() {
     document.getElementById('sideModal').classList.remove('active');
-    state.pendingProduct = null;
+    pendingProduct = null;
 }
 
 function selectSide(side) {
-    if (state.pendingProduct) {
-        addToCart(state.pendingProduct, side);
+    if (pendingProduct) {
+        addToCart(pendingProduct, side);
         closeSideModal();
     }
 }
 
 // ==================== CARRITO ====================
 function addToCart(product, side) {
-    const cartItemId = side ? `${product.id}-${side}` : product.id.toString();
-    const existingItem = state.cart.find(item => item.cartItemId === cartItemId);
+    var cartItemId = side ? product.id + '-' + side : product.id.toString();
+    var existingItem = cart.find(function(item) { return item.cartItemId === cartItemId; });
     
     if (existingItem) {
         existingItem.quantity++;
     } else {
-        state.cart.push({
-            cartItemId,
+        cart.push({
+            cartItemId: cartItemId,
             id: product.id,
             name: product.name,
             price: product.price,
-            side,
+            side: side,
             quantity: 1,
             category: product.category
         });
     }
     
     updateCart();
-    showToast(`${product.name} agregado`, 'success');
+    showToast(product.name + ' agregado', 'success');
 }
 
 function updateQuantity(cartItemId, change) {
-    const item = state.cart.find(item => item.cartItemId === cartItemId);
+    var item = cart.find(function(item) { return item.cartItemId === cartItemId; });
     if (item) {
         item.quantity += change;
         if (item.quantity <= 0) {
@@ -562,73 +634,68 @@ function updateQuantity(cartItemId, change) {
 }
 
 function removeFromCart(cartItemId) {
-    state.cart = state.cart.filter(item => item.cartItemId !== cartItemId);
+    cart = cart.filter(function(item) { return item.cartItemId !== cartItemId; });
     updateCart();
 }
 
 function clearCart() {
-    if (state.cart.length > 0) {
+    if (cart.length > 0) {
         if (confirm('¿Limpiar el carrito?')) {
-            state.cart = [];
+            cart = [];
             updateCart();
         }
     }
 }
 
 function updateCart() {
-    const container = document.getElementById('cartItems');
+    var container = document.getElementById('cartItems');
     if (!container) return;
     
-    const total = calculateTotal();
+    var total = calculateTotal();
     
-    if (state.cart.length === 0) {
-        container.innerHTML = `
-            <div class="empty-cart">
-                <div class="empty-icon">🛒</div>
-                <p>Agrega productos para comenzar</p>
-            </div>
-        `;
+    if (cart.length === 0) {
+        container.innerHTML = '<div class="empty-cart"><div class="empty-icon">🛒</div><p>Agrega productos para comenzar</p></div>';
         document.getElementById('btnPay').disabled = true;
     } else {
-        container.innerHTML = state.cart.map(item => `
-            <div class="cart-item">
-                <div class="cart-item-info">
-                    <div class="cart-item-name">${item.name}</div>
-                    ${item.side ? `<div class="cart-item-side">+ ${item.side}</div>` : ''}
-                    <div class="cart-item-price">Bs. ${item.price.toFixed(2)} c/u</div>
-                </div>
-                <div class="cart-item-controls">
-                    <button class="qty-btn" onclick="updateQuantity('${item.cartItemId}', -1)">−</button>
-                    <span class="qty-display">${item.quantity}</span>
-                    <button class="qty-btn" onclick="updateQuantity('${item.cartItemId}', 1)">+</button>
-                    <button class="btn-remove" onclick="removeFromCart('${item.cartItemId}')">✕</button>
-                </div>
-            </div>
-        `).join('');
+        container.innerHTML = cart.map(function(item) {
+            return '<div class="cart-item">' +
+                '<div class="cart-item-info">' +
+                    '<div class="cart-item-name">' + item.name + '</div>' +
+                    (item.side ? '<div class="cart-item-side">+ ' + item.side + '</div>' : '') +
+                    '<div class="cart-item-price">Bs. ' + item.price.toFixed(2) + ' c/u</div>' +
+                '</div>' +
+                '<div class="cart-item-controls">' +
+                    '<button class="qty-btn" onclick="updateQuantity(\'' + item.cartItemId + '\', -1)">−</button>' +
+                    '<span class="qty-display">' + item.quantity + '</span>' +
+                    '<button class="qty-btn" onclick="updateQuantity(\'' + item.cartItemId + '\', 1)">+</button>' +
+                    '<button class="btn-remove" onclick="removeFromCart(\'' + item.cartItemId + '\')">✕</button>' +
+                '</div>' +
+            '</div>';
+        }).join('');
         document.getElementById('btnPay').disabled = false;
     }
 
-    document.getElementById('subtotal').textContent = `Bs. ${total.toFixed(2)}`;
-    document.getElementById('total').textContent = `Bs. ${total.toFixed(2)}`;
+    document.getElementById('subtotal').textContent = 'Bs. ' + total.toFixed(2);
+    document.getElementById('total').textContent = 'Bs. ' + total.toFixed(2);
 }
 
 function calculateTotal() {
-    return state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return cart.reduce(function(sum, item) { return sum + (item.price * item.quantity); }, 0);
 }
 
 // ==================== PAGO ====================
 function showPaymentModal() {
-    if (state.cart.length === 0) return;
+    if (cart.length === 0) return;
     
-    const total = calculateTotal();
-    document.getElementById('paymentTotal').textContent = `Bs. ${total.toFixed(2)}`;
+    var total = calculateTotal();
+    document.getElementById('paymentTotal').textContent = 'Bs. ' + total.toFixed(2);
     document.getElementById('amountReceived').value = '';
     document.getElementById('changeAmount').textContent = 'Bs. 0.00';
     document.getElementById('changeDisplay').classList.remove('insufficient');
     document.getElementById('btnConfirmPay').disabled = true;
     document.getElementById('paymentModal').classList.add('active');
     
-    setTimeout(() => document.getElementById('amountReceived').focus(), 100);
+    setTimeout(function() { document.getElementById('amountReceived').focus(); }, 100);
 }
 
 function closePaymentModal() {
@@ -636,71 +703,71 @@ function closePaymentModal() {
 }
 
 function setQuickAmount(amount) {
-    const total = calculateTotal();
-    const input = document.getElementById('amountReceived');
+    var total = calculateTotal();
+    var input = document.getElementById('amountReceived');
     input.value = amount === 'exact' ? total.toFixed(2) : amount;
     calculateChange();
 }
 
 function calculateChange() {
-    const total = calculateTotal();
-    const received = parseFloat(document.getElementById('amountReceived').value) || 0;
-    const change = received - total;
+    var total = calculateTotal();
+    var received = parseFloat(document.getElementById('amountReceived').value) || 0;
+    var change = received - total;
 
-    const changeDisplay = document.getElementById('changeDisplay');
-    const changeAmount = document.getElementById('changeAmount');
-    const btnConfirm = document.getElementById('btnConfirmPay');
+    var changeDisplay = document.getElementById('changeDisplay');
+    var changeAmount = document.getElementById('changeAmount');
+    var btnConfirm = document.getElementById('btnConfirmPay');
 
     if (received < total) {
         changeDisplay.classList.add('insufficient');
-        changeAmount.textContent = `Falta: Bs. ${Math.abs(change).toFixed(2)}`;
+        changeAmount.textContent = 'Falta: Bs. ' + Math.abs(change).toFixed(2);
         btnConfirm.disabled = true;
     } else {
         changeDisplay.classList.remove('insufficient');
-        changeAmount.textContent = `Bs. ${change.toFixed(2)}`;
+        changeAmount.textContent = 'Bs. ' + change.toFixed(2);
         btnConfirm.disabled = false;
     }
 
-    state.paymentInfo = { received, change };
+    paymentInfo = { received: received, change: change };
 }
 
 async function confirmPayment() {
     closePaymentModal();
     
-    const total = calculateTotal();
-    const now = new Date();
+    var total = calculateTotal();
+    var now = new Date();
     
     // Crear objeto de venta con copia del carrito
-    const sale = {
-        orderNumber: state.orderNumber,
-        items: [...state.cart],
+    var sale = {
+        orderNumber: orderNumber,
+        items: cart.slice(),
         total: total,
-        received: state.paymentInfo.received,
-        change: state.paymentInfo.change,
+        received: paymentInfo.received,
+        change: paymentInfo.change,
         timestamp: now.toISOString(),
         date: now.toLocaleDateString('es-BO'),
         time: now.toLocaleTimeString('es-BO')
     };
     
     // Guardar en historial local
-    state.salesHistory.push(sale);
+    salesHistory.push(sale);
     saveState();
     
     // Preparar ticket
     prepareTicket(sale);
     
     // Mostrar modal de éxito
-    document.getElementById('successTotal').textContent = `Bs. ${total.toFixed(2)}`;
-    document.getElementById('successReceived').textContent = `Bs. ${state.paymentInfo.received.toFixed(2)}`;
-    document.getElementById('successChange').textContent = `Bs. ${state.paymentInfo.change.toFixed(2)}`;
+    document.getElementById('successTotal').textContent = 'Bs. ' + total.toFixed(2);
+    document.getElementById('successReceived').textContent = 'Bs. ' + paymentInfo.received.toFixed(2);
+    document.getElementById('successChange').textContent = 'Bs. ' + paymentInfo.change.toFixed(2);
     
     // Guardar en Google Sheets
-    const syncStatus = document.getElementById('syncStatus');
-    if (state.isGoogleConnected) {
+    var syncStatus = document.getElementById('syncStatus');
+    if (usuarioGoogle) {
         syncStatus.innerHTML = '⏳ Guardando en Google Sheets...';
         syncStatus.style.color = '#64748b';
         
-        const saved = await saveToGoogleSheets(sale);
+        var saved = await saveToGoogleSheets(sale);
         
         if (saved) {
             syncStatus.innerHTML = '✅ Guardado en la nube';
@@ -717,29 +784,29 @@ async function confirmPayment() {
     document.getElementById('successModal').classList.add('active');
     
     // Incrementar número de orden
-    state.orderNumber++;
+    orderNumber++;
     updateOrderNumber();
     saveState();
 }
 
 function prepareTicket(sale) {
-    document.getElementById('ticketDate').textContent = `Fecha: ${sale.date}`;
-    document.getElementById('ticketTime').textContent = `Hora: ${sale.time}`;
-    document.getElementById('ticketNumber').textContent = `#${sale.orderNumber.toString().padStart(4, '0')}`;
+    document.getElementById('ticketDate').textContent = 'Fecha: ' + sale.date;
+    document.getElementById('ticketTime').textContent = 'Hora: ' + sale.time;
+    document.getElementById('ticketNumber').textContent = '#' + sale.orderNumber.toString().padStart(4, '0');
     
-    document.getElementById('ticketItems').innerHTML = sale.items.map(item => `
-        <div class="ticket-item">
-            <div class="ticket-item-row">
-                <span>${item.quantity}x ${item.name}</span>
-                <span>Bs. ${(item.price * item.quantity).toFixed(2)}</span>
-            </div>
-            ${item.side ? `<div class="ticket-item-side">+ ${item.side}</div>` : ''}
-        </div>
-    `).join('');
+    document.getElementById('ticketItems').innerHTML = sale.items.map(function(item) {
+        return '<div class="ticket-item">' +
+            '<div class="ticket-item-row">' +
+                '<span>' + item.quantity + 'x ' + item.name + '</span>' +
+                '<span>Bs. ' + (item.price * item.quantity).toFixed(2) + '</span>' +
+            '</div>' +
+            (item.side ? '<div class="ticket-item-side">+ ' + item.side + '</div>' : '') +
+        '</div>';
+    }).join('');
     
-    document.getElementById('ticketTotal').textContent = `Bs. ${sale.total.toFixed(2)}`;
-    document.getElementById('ticketReceived').textContent = `Bs. ${sale.received.toFixed(2)}`;
-    document.getElementById('ticketChange').textContent = `Bs. ${sale.change.toFixed(2)}`;
+    document.getElementById('ticketTotal').textContent = 'Bs. ' + sale.total.toFixed(2);
+    document.getElementById('ticketReceived').textContent = 'Bs. ' + sale.received.toFixed(2);
+    document.getElementById('ticketChange').textContent = 'Bs. ' + sale.change.toFixed(2);
 }
 
 function printTicket() {
@@ -748,38 +815,36 @@ function printTicket() {
 
 function closeSuccessModal() {
     document.getElementById('successModal').classList.remove('active');
-    state.cart = [];
-    state.paymentInfo = { received: 0, change: 0 };
+    cart = [];
+    paymentInfo = { received: 0, change: 0 };
     updateCart();
 }
 
 // ==================== ESTADÍSTICAS ====================
 function initDateFilters() {
-    const today = new Date().toISOString().split('T')[0];
-    const dateFrom = document.getElementById('dateFrom');
-    const dateTo = document.getElementById('dateTo');
+    var today = new Date().toISOString().split('T')[0];
+    var dateFrom = document.getElementById('dateFrom');
+    var dateTo = document.getElementById('dateTo');
     
     if (dateFrom) dateFrom.value = today;
     if (dateTo) dateTo.value = today;
 }
 
 function setQuickFilter(period) {
-    // Actualizar botones activos
-    document.querySelectorAll('.chip').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = document.querySelector(`[data-filter="${period}"]`);
+    document.querySelectorAll('.chip').forEach(function(btn) { btn.classList.remove('active'); });
+    var activeBtn = document.querySelector('[data-filter="' + period + '"]');
     if (activeBtn) activeBtn.classList.add('active');
 
-    const today = new Date();
-    const dateTo = document.getElementById('dateTo');
-    const dateFrom = document.getElementById('dateFrom');
+    var today = new Date();
+    var dateTo = document.getElementById('dateTo');
+    var dateFrom = document.getElementById('dateFrom');
 
     if (dateTo) dateTo.value = today.toISOString().split('T')[0];
 
-    let fromDate = new Date(today);
+    var fromDate = new Date(today);
     
     switch(period) {
         case 'today':
-            // Ya está en today
             break;
         case 'week':
             fromDate.setDate(fromDate.getDate() - 7);
@@ -802,41 +867,41 @@ function applyFilters() {
 }
 
 function getFilteredSales() {
-    const dateFromEl = document.getElementById('dateFrom');
-    const dateToEl = document.getElementById('dateTo');
+    var dateFromEl = document.getElementById('dateFrom');
+    var dateToEl = document.getElementById('dateTo');
     
-    if (!dateFromEl || !dateToEl) return state.salesHistory;
+    if (!dateFromEl || !dateToEl) return salesHistory;
     
-    const dateFrom = new Date(dateFromEl.value);
-    const dateTo = new Date(dateToEl.value);
+    var dateFrom = new Date(dateFromEl.value);
+    var dateTo = new Date(dateToEl.value);
     dateTo.setHours(23, 59, 59, 999);
 
-    return state.salesHistory.filter(sale => {
-        const saleDate = new Date(sale.timestamp);
+    return salesHistory.filter(function(sale) {
+        var saleDate = new Date(sale.timestamp);
         return saleDate >= dateFrom && saleDate <= dateTo;
     });
 }
 
 function updateStats() {
-    const filteredSales = getFilteredSales();
+    var filteredSales = getFilteredSales();
     
     // Calcular KPIs
-    const totalSales = filteredSales.reduce((sum, sale) => sum + sale.total, 0);
-    const orderCount = filteredSales.length;
-    const avgTicket = orderCount > 0 ? totalSales / orderCount : 0;
-    const productsSold = filteredSales.reduce((sum, sale) => {
-        return sum + sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+    var totalSales = filteredSales.reduce(function(sum, sale) { return sum + sale.total; }, 0);
+    var orderCount = filteredSales.length;
+    var avgTicket = orderCount > 0 ? totalSales / orderCount : 0;
+    var productsSold = filteredSales.reduce(function(sum, sale) {
+        return sum + sale.items.reduce(function(itemSum, item) { return itemSum + item.quantity; }, 0);
     }, 0);
 
-    // Actualizar KPIs en el DOM
-    const kpiSales = document.getElementById('kpiSales');
-    const kpiOrders = document.getElementById('kpiOrders');
-    const kpiAvg = document.getElementById('kpiAvg');
-    const kpiProducts = document.getElementById('kpiProducts');
+    // Actualizar KPIs
+    var kpiSales = document.getElementById('kpiSales');
+    var kpiOrders = document.getElementById('kpiOrders');
+    var kpiAvg = document.getElementById('kpiAvg');
+    var kpiProducts = document.getElementById('kpiProducts');
     
-    if (kpiSales) kpiSales.textContent = `Bs. ${totalSales.toFixed(2)}`;
+    if (kpiSales) kpiSales.textContent = 'Bs. ' + totalSales.toFixed(2);
     if (kpiOrders) kpiOrders.textContent = orderCount;
-    if (kpiAvg) kpiAvg.textContent = `Bs. ${avgTicket.toFixed(2)}`;
+    if (kpiAvg) kpiAvg.textContent = 'Bs. ' + avgTicket.toFixed(2);
     if (kpiProducts) kpiProducts.textContent = productsSold;
 
     // Actualizar gráficos
@@ -849,23 +914,22 @@ function updateStats() {
 }
 
 function updateSalesChart(sales) {
-    const canvas = document.getElementById('salesChart');
+    var canvas = document.getElementById('salesChart');
     if (!canvas) return;
     
-    const ctx = canvas.getContext('2d');
+    var ctx = canvas.getContext('2d');
     
     // Agrupar ventas por día
-    const salesByDay = {};
-    sales.forEach(sale => {
-        const date = sale.date;
+    var salesByDay = {};
+    sales.forEach(function(sale) {
+        var date = sale.date;
         if (!salesByDay[date]) salesByDay[date] = 0;
         salesByDay[date] += sale.total;
     });
 
-    const labels = Object.keys(salesByDay).sort();
-    const data = labels.map(date => salesByDay[date]);
+    var labels = Object.keys(salesByDay).sort();
+    var data = labels.map(function(date) { return salesByDay[date]; });
 
-    // Destruir gráfico anterior si existe
     if (salesChart) salesChart.destroy();
 
     salesChart = new Chart(ctx, {
@@ -883,8 +947,7 @@ function updateSalesChart(sales) {
                 pointRadius: 6,
                 pointBackgroundColor: '#ff6f00',
                 pointBorderColor: '#ffffff',
-                pointBorderWidth: 2,
-                pointHoverRadius: 8
+                pointBorderWidth: 2
             }]
         },
         options: {
@@ -894,13 +957,10 @@ function updateSalesChart(sales) {
                 legend: { display: false },
                 tooltip: {
                     backgroundColor: '#1a1a2e',
-                    titleColor: '#ffffff',
-                    bodyColor: '#ffffff',
                     padding: 12,
                     cornerRadius: 8,
-                    displayColors: false,
                     callbacks: {
-                        label: ctx => `Ventas: Bs. ${ctx.raw.toFixed(2)}`
+                        label: function(ctx) { return 'Ventas: Bs. ' + ctx.raw.toFixed(2); }
                     }
                 }
             },
@@ -908,42 +968,30 @@ function updateSalesChart(sales) {
                 y: {
                     beginAtZero: true,
                     grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                    ticks: { 
-                        callback: v => `Bs. ${v}`,
-                        font: { family: 'Poppins' }
-                    }
+                    ticks: { callback: function(v) { return 'Bs. ' + v; } }
                 },
-                x: {
-                    grid: { display: false },
-                    ticks: { font: { family: 'Poppins' } }
-                }
-            },
-            interaction: {
-                intersect: false,
-                mode: 'index'
+                x: { grid: { display: false } }
             }
         }
     });
 }
 
 function updateCategoryChart(sales) {
-    const canvas = document.getElementById('categoryChart');
+    var canvas = document.getElementById('categoryChart');
     if (!canvas) return;
     
-    const ctx = canvas.getContext('2d');
+    var ctx = canvas.getContext('2d');
     
-    // Agrupar ventas por categoría
-    const salesByCategory = { milanesas: 0, pollos: 0, extras: 0, bebidas: 0 };
+    var salesByCategory = { milanesas: 0, pollos: 0, extras: 0, bebidas: 0 };
 
-    sales.forEach(sale => {
-        sale.items.forEach(item => {
+    sales.forEach(function(sale) {
+        sale.items.forEach(function(item) {
             if (salesByCategory.hasOwnProperty(item.category)) {
                 salesByCategory[item.category] += item.price * item.quantity;
             }
         });
     });
 
-    // Destruir gráfico anterior si existe
     if (categoryChart) categoryChart.destroy();
 
     categoryChart = new Chart(ctx, {
@@ -955,8 +1003,7 @@ function updateCategoryChart(sales) {
                 backgroundColor: ['#ff6f00', '#ffc107', '#00c853', '#2979ff'],
                 borderWidth: 4,
                 borderColor: '#ffffff',
-                hoverOffset: 15,
-                hoverBorderWidth: 2
+                hoverOffset: 15
             }]
         },
         options: {
@@ -966,23 +1013,13 @@ function updateCategoryChart(sales) {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: {
-                        padding: 20,
-                        usePointStyle: true,
-                        pointStyle: 'circle',
-                        font: { 
-                            size: 12, 
-                            family: 'Poppins',
-                            weight: '500'
-                        }
-                    }
+                    labels: { padding: 20, usePointStyle: true }
                 },
                 tooltip: {
                     backgroundColor: '#1a1a2e',
                     padding: 12,
-                    cornerRadius: 8,
                     callbacks: {
-                        label: ctx => ` Bs. ${ctx.raw.toFixed(2)}`
+                        label: function(ctx) { return ' Bs. ' + ctx.raw.toFixed(2); }
                     }
                 }
             }
@@ -991,126 +1028,73 @@ function updateCategoryChart(sales) {
 }
 
 function updateTopProducts(sales) {
-    const tbody = document.getElementById('topProductsBody');
+    var tbody = document.getElementById('topProductsBody');
     if (!tbody) return;
     
-    // Agrupar ventas por producto
-    const productSales = {};
+    var productSales = {};
 
-    sales.forEach(sale => {
-        sale.items.forEach(item => {
+    sales.forEach(function(sale) {
+        sale.items.forEach(function(item) {
             if (!productSales[item.name]) {
-                productSales[item.name] = { 
-                    name: item.name, 
-                    category: item.category || 'otros', 
-                    quantity: 0, 
-                    revenue: 0 
-                };
+                productSales[item.name] = { name: item.name, category: item.category || 'otros', quantity: 0, revenue: 0 };
             }
             productSales[item.name].quantity += item.quantity;
             productSales[item.name].revenue += item.price * item.quantity;
         });
     });
 
-    // Ordenar por cantidad vendida
-    const sorted = Object.values(productSales)
-        .sort((a, b) => b.quantity - a.quantity)
-        .slice(0, 10);
+    var sorted = Object.values(productSales).sort(function(a, b) { return b.quantity - a.quantity; }).slice(0, 10);
     
     if (sorted.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="no-data">
-                    <span class="no-data-icon">📊</span>
-                    <p>No hay datos disponibles</p>
-                </td>
-            </tr>
-        `;
+        tbody.innerHTML = '<tr><td colspan="5" class="no-data"><span class="no-data-icon">📊</span><p>No hay datos disponibles</p></td></tr>';
         return;
     }
 
-    tbody.innerHTML = sorted.map((product, i) => {
-        const cat = CATEGORIES[product.category];
-        const catDisplay = cat ? `${cat.icon} ${cat.name}` : product.category;
-        const rankClass = i < 3 ? `rank-${i+1}` : 'rank-default';
+    tbody.innerHTML = sorted.map(function(product, i) {
+        var cat = CATEGORIES[product.category];
+        var catDisplay = cat ? cat.icon + ' ' + cat.name : product.category;
+        var rankClass = i < 3 ? 'rank-' + (i + 1) : 'rank-default';
         
-        return `
-            <tr>
-                <td><span class="rank-badge ${rankClass}">${i+1}</span></td>
-                <td><strong>${product.name}</strong></td>
-                <td>${catDisplay}</td>
-                <td>${product.quantity}</td>
-                <td><strong>Bs. ${product.revenue.toFixed(2)}</strong></td>
-            </tr>
-        `;
+        return '<tr><td><span class="rank-badge ' + rankClass + '">' + (i + 1) + '</span></td><td><strong>' + product.name + '</strong></td><td>' + catDisplay + '</td><td>' + product.quantity + '</td><td><strong>Bs. ' + product.revenue.toFixed(2) + '</strong></td></tr>';
     }).join('');
 }
 
 function updateSalesHistory(sales) {
-    const tbody = document.getElementById('salesHistoryBody');
+    var tbody = document.getElementById('salesHistoryBody');
     if (!tbody) return;
     
     if (sales.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="no-data">
-                    <span class="no-data-icon">🧾</span>
-                    <p>No hay ventas registradas</p>
-                </td>
-            </tr>
-        `;
+        tbody.innerHTML = '<tr><td colspan="7" class="no-data"><span class="no-data-icon">🧾</span><p>No hay ventas registradas</p></td></tr>';
         return;
     }
 
-    // Ordenar por fecha descendente
-    const sorted = [...sales].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    var sorted = sales.slice().sort(function(a, b) { return new Date(b.timestamp) - new Date(a.timestamp); });
 
-    tbody.innerHTML = sorted.slice(0, 100).map(sale => {
-        const itemCount = sale.items.reduce((sum, item) => sum + item.quantity, 0);
-        return `
-            <tr>
-                <td><strong>#${sale.orderNumber.toString().padStart(4, '0')}</strong></td>
-                <td>${sale.date}</td>
-                <td>${sale.time}</td>
-                <td>${itemCount} items</td>
-                <td><strong>Bs. ${sale.total.toFixed(2)}</strong></td>
-                <td>Bs. ${sale.received?.toFixed(2) || '-'}</td>
-                <td>Bs. ${sale.change?.toFixed(2) || '-'}</td>
-            </tr>
-        `;
+    tbody.innerHTML = sorted.slice(0, 100).map(function(sale) {
+        var itemCount = sale.items.reduce(function(sum, item) { return sum + item.quantity; }, 0);
+        return '<tr><td><strong>#' + sale.orderNumber.toString().padStart(4, '0') + '</strong></td><td>' + sale.date + '</td><td>' + sale.time + '</td><td>' + itemCount + ' items</td><td><strong>Bs. ' + sale.total.toFixed(2) + '</strong></td><td>Bs. ' + (sale.received ? sale.received.toFixed(2) : '-') + '</td><td>Bs. ' + (sale.change ? sale.change.toFixed(2) : '-') + '</td></tr>';
     }).join('');
 }
 
 function exportToCSV() {
-    const filteredSales = getFilteredSales();
+    var filteredSales = getFilteredSales();
     
     if (filteredSales.length === 0) {
         showToast('No hay datos para exportar', 'warning');
         return;
     }
 
-    // Crear CSV
-    let csv = 'Pedido,Fecha,Hora,Productos,Total,Pago Recibido,Cambio\n';
+    var csv = 'Pedido,Fecha,Hora,Productos,Total,Pago Recibido,Cambio\n';
     
-    filteredSales.forEach(sale => {
-        const items = sale.items.map(i => `${i.name}${i.side ? ' + ' + i.side : ''} x${i.quantity}`).join('; ');
-        const row = [
-            sale.orderNumber,
-            sale.date,
-            sale.time,
-            `"${items}"`,
-            sale.total.toFixed(2),
-            sale.received?.toFixed(2) || '',
-            sale.change?.toFixed(2) || ''
-        ].join(',');
-        csv += row + '\n';
+    filteredSales.forEach(function(sale) {
+        var items = sale.items.map(function(i) { return i.name + (i.side ? ' + ' + i.side : '') + ' x' + i.quantity; }).join('; ');
+        csv += sale.orderNumber + ',' + sale.date + ',' + sale.time + ',"' + items + '",' + sale.total.toFixed(2) + ',' + (sale.received ? sale.received.toFixed(2) : '') + ',' + (sale.change ? sale.change.toFixed(2) : '') + '\n';
     });
 
-    // Descargar archivo
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `ventas_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = 'ventas_' + new Date().toISOString().split('T')[0] + '.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1119,44 +1103,41 @@ function exportToCSV() {
 }
 
 // ==================== UTILIDADES ====================
-function showToast(message, type = 'success') {
-    const toast = document.getElementById('toast');
-    const icon = document.getElementById('toastIcon');
-    const text = document.getElementById('toastMessage');
+function showToast(message, type) {
+    type = type || 'success';
+    var toast = document.getElementById('toast');
+    var icon = document.getElementById('toastIcon');
+    var text = document.getElementById('toastMessage');
 
     if (!toast || !icon || !text) return;
 
     toast.className = 'toast show';
     
-    switch(type) {
-        case 'error':
-            toast.classList.add('error');
-            icon.textContent = '❌';
-            break;
-        case 'warning':
-            toast.classList.add('warning');
-            icon.textContent = '⚠️';
-            break;
-        default:
-            icon.textContent = '✅';
+    if (type === 'error') {
+        toast.classList.add('error');
+        icon.textContent = '❌';
+    } else if (type === 'warning') {
+        toast.classList.add('warning');
+        icon.textContent = '⚠️';
+    } else {
+        icon.textContent = '✅';
     }
     
     text.textContent = message;
 
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3500);
+    setTimeout(function() { toast.classList.remove('show'); }, 3500);
 }
 
-function showLoading(text = 'Cargando...') {
-    const loadingText = document.getElementById('loadingText');
-    const loadingOverlay = document.getElementById('loadingOverlay');
+function showLoading(text) {
+    text = text || 'Cargando...';
+    var loadingText = document.getElementById('loadingText');
+    var loadingOverlay = document.getElementById('loadingOverlay');
     
     if (loadingText) loadingText.textContent = text;
     if (loadingOverlay) loadingOverlay.classList.add('active');
 }
 
 function hideLoading() {
-    const loadingOverlay = document.getElementById('loadingOverlay');
+    var loadingOverlay = document.getElementById('loadingOverlay');
     if (loadingOverlay) loadingOverlay.classList.remove('active');
 }
