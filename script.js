@@ -1139,7 +1139,8 @@ async function confirmPayment() {
         received: paymentInfo.received,
         change: paymentInfo.change,
         date: now.toLocaleDateString('es-BO'),
-        time: now.toLocaleTimeString('es-BO')
+        time: now.toLocaleTimeString('es-BO'),
+        timestamp: now.toISOString()  // Para control de turnos
     };
 
     // Guardar en historial local
@@ -1174,6 +1175,7 @@ async function confirmPayment() {
     updateOrderNumber();
     saveState();
     updateStats();
+    updateLastSaleInfo();  // Actualizar panel de última venta
 }
 
 /**
@@ -1221,97 +1223,11 @@ function closeSuccessModal() {
 
 
 // ╔════════════════════════════════════════════════════════════════════════════╗
-// ║                    SECCIÓN 16: ESTADÍSTICAS - FILTROS Y CÁLCULOS            ║
+// ║                    SECCIÓN 16: ESTADÍSTICAS - CÁLCULOS                       ║
 // ╠════════════════════════════════════════════════════════════════════════════╣
-// ║  Funciones para filtrar ventas y calcular estadísticas                     ║
-// ║  IMPORTANTE: Las estadísticas se basan en ID_Venta, no en fechas           ║
+// ║  Funciones para calcular estadísticas                                       ║
+// ║  IMPORTANTE: Las estadísticas se basan en ID_Venta                          ║
 // ╚════════════════════════════════════════════════════════════════════════════╝
-
-/**
- * Inicializa los filtros de fecha con la fecha actual
- */
-function initDateFilters() {
-    const today = new Date();
-    const dateFrom = document.getElementById('dateFrom');
-    const dateTo = document.getElementById('dateTo');
-
-    if (dateFrom) dateFrom.value = today.toISOString().split('T')[0];
-    if (dateTo) dateTo.value = today.toISOString().split('T')[0];
-}
-
-/**
- * Aplica un filtro rápido predefinido
- * @param {string} filter - 'today', 'week', 'month' o 'all'
- */
-function setQuickFilter(filter) {
-    // Remover clase active de todos los chips
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    
-    // Activar el chip seleccionado
-    const activeChip = document.querySelector(`[data-filter="${filter}"]`);
-    if (activeChip) activeChip.classList.add('active');
-
-    const today = new Date();
-    const dateFrom = document.getElementById('dateFrom');
-    const dateTo = document.getElementById('dateTo');
-
-    // Calcular rangos según el filtro
-    switch (filter) {
-        case 'today':
-            dateFrom.value = today.toISOString().split('T')[0];
-            dateTo.value = today.toISOString().split('T')[0];
-            break;
-        case 'week':
-            const weekAgo = new Date(today);
-            weekAgo.setDate(weekAgo.getDate() - 7);
-            dateFrom.value = weekAgo.toISOString().split('T')[0];
-            dateTo.value = today.toISOString().split('T')[0];
-            break;
-        case 'month':
-            const monthAgo = new Date(today);
-            monthAgo.setMonth(monthAgo.getMonth() - 1);
-            dateFrom.value = monthAgo.toISOString().split('T')[0];
-            dateTo.value = today.toISOString().split('T')[0];
-            break;
-        case 'all':
-            // Mostrar todas las ventas (sin filtro de fecha)
-            dateFrom.value = '2020-01-01';
-            dateTo.value = today.toISOString().split('T')[0];
-            break;
-    }
-
-    updateStats();
-}
-
-/**
- * Aplica los filtros de fecha personalizados
- */
-function applyFilters() {
-    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    updateStats();
-}
-
-/**
- * Obtiene las ventas filtradas por rango de ID_Venta
- * NOTA: Esta función ahora filtra por ID_Venta para evitar problemas con fechas
- * @returns {Array} - Array de ventas filtradas
- */
-function getFilteredSales() {
-    // Para evitar problemas con fechas, trabajamos con todas las ventas
-    // o filtramos por rango de IDs si es necesario
-    
-    const fromInput = document.getElementById('dateFrom');
-    const toInput = document.getElementById('dateTo');
-    
-    // Si el filtro es "Todo", devolver todas las ventas
-    if (!fromInput || !toInput || !fromInput.value || !toInput.value) {
-        return salesHistory;
-    }
-    
-    // Filtrar por ID_Venta (las ventas más recientes tienen IDs más altos)
-    // Esto es más confiable que filtrar por fecha
-    return salesHistory;
-}
 
 /**
  * Limpia todas las estadísticas (cuando no hay datos)
@@ -1816,8 +1732,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Inicializar interfaz
     updateCart();
     updateOrderNumber();
-    initDateFilters();
+    initShiftTime();
     updateDateTime();
+    updateLastSaleInfo();
     
     // Actualizar reloj cada segundo
     setInterval(updateDateTime, 1000);
@@ -1830,3 +1747,207 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ Sistema listo');
     console.log('📋 Ventas en localStorage:', salesHistory.length);
 });
+
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 23: PANEL DE RESUMEN DEL TURNO                   ║
+// ╠════════════════════════════════════════════════════════════════════════════╣
+// ║  Funciones para el nuevo panel de resumen que reemplaza los filtros         ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+/**
+ * Inicializa la hora de inicio del turno
+ * Si no hay una guardada, usa la hora actual
+ */
+function initShiftTime() {
+    let shiftStart = localStorage.getItem('pos_shiftStart');
+    
+    if (!shiftStart) {
+        shiftStart = new Date().toISOString();
+        localStorage.setItem('pos_shiftStart', shiftStart);
+    }
+    
+    const shiftDate = new Date(shiftStart);
+    const timeStr = shiftDate.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+    
+    const shiftEl = document.getElementById('shiftStartTime');
+    if (shiftEl) shiftEl.textContent = timeStr;
+}
+
+/**
+ * Actualiza la información de la última venta en el panel
+ */
+function updateLastSaleInfo() {
+    const lastSaleNumber = document.getElementById('lastSaleNumber');
+    const lastSaleTotal = document.getElementById('lastSaleTotal');
+    const lastSaleTime = document.getElementById('lastSaleTime');
+    const lastSaleItems = document.getElementById('lastSaleItems');
+    
+    if (salesHistory.length === 0) {
+        if (lastSaleNumber) lastSaleNumber.textContent = '---';
+        if (lastSaleTotal) lastSaleTotal.textContent = 'Bs. 0.00';
+        if (lastSaleTime) lastSaleTime.textContent = '--:--';
+        if (lastSaleItems) lastSaleItems.textContent = '0';
+        return;
+    }
+    
+    // Obtener la última venta
+    const lastSale = salesHistory[salesHistory.length - 1];
+    
+    if (lastSaleNumber) lastSaleNumber.textContent = '#' + (lastSale.orderNumber || '---').toString().padStart(4, '0');
+    if (lastSaleTotal) lastSaleTotal.textContent = 'Bs. ' + (lastSale.total || 0).toFixed(2);
+    if (lastSaleTime) lastSaleTime.textContent = lastSale.time || '--:--';
+    
+    // Contar items
+    let itemCount = 0;
+    if (lastSale.items && lastSale.items.length > 0) {
+        lastSale.items.forEach(item => {
+            itemCount += item.quantity || 1;
+        });
+    }
+    if (lastSaleItems) lastSaleItems.textContent = itemCount;
+}
+
+/**
+ * Genera un reporte resumido del día actual
+ * Muestra un toast con el resumen
+ */
+function generateDailyReport() {
+    const today = new Date().toLocaleDateString('es-BO');
+    
+    // Filtrar ventas de hoy
+    const todaySales = salesHistory.filter(sale => sale.date === today);
+    
+    if (todaySales.length === 0) {
+        showToast('No hay ventas registradas hoy', 'warning');
+        return;
+    }
+    
+    // Calcular totales
+    let totalVentas = 0;
+    let totalItems = 0;
+    
+    todaySales.forEach(sale => {
+        totalVentas += sale.total || 0;
+        if (sale.items) {
+            sale.items.forEach(item => {
+                totalItems += item.quantity || 1;
+            });
+        }
+    });
+    
+    const promedio = totalVentas / todaySales.length;
+    
+    // Crear alerta con el reporte
+    const mensaje = `📊 REPORTE DEL DÍA\n\n` +
+        `📅 Fecha: ${today}\n` +
+        `🧾 Pedidos: ${todaySales.length}\n` +
+        `🍗 Productos vendidos: ${totalItems}\n` +
+        `💰 Total: Bs. ${totalVentas.toFixed(2)}\n` +
+        `📈 Promedio: Bs. ${promedio.toFixed(2)}`;
+    
+    alert(mensaje);
+    showToast('Reporte generado', 'success');
+}
+
+/**
+ * Muestra los productos más vendidos del turno actual
+ */
+function showTopSelling() {
+    if (salesHistory.length === 0) {
+        showToast('No hay ventas para analizar', 'warning');
+        return;
+    }
+    
+    // Contar productos vendidos
+    const productCount = {};
+    
+    salesHistory.forEach(sale => {
+        if (sale.items) {
+            sale.items.forEach(item => {
+                const name = item.name || 'Desconocido';
+                if (!productCount[name]) {
+                    productCount[name] = { quantity: 0, revenue: 0 };
+                }
+                productCount[name].quantity += item.quantity || 1;
+                productCount[name].revenue += (item.price || 0) * (item.quantity || 1);
+            });
+        }
+    });
+    
+    // Ordenar por cantidad
+    const sorted = Object.entries(productCount)
+        .sort((a, b) => b[1].quantity - a[1].quantity)
+        .slice(0, 5);
+    
+    if (sorted.length === 0) {
+        showToast('No hay productos vendidos', 'warning');
+        return;
+    }
+    
+    // Crear mensaje
+    let mensaje = '🏆 TOP 5 MÁS VENDIDOS\n\n';
+    
+    sorted.forEach((item, index) => {
+        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '▪️';
+        mensaje += `${medal} ${item[0]}\n   Cantidad: ${item[1].quantity} | Bs. ${item[1].revenue.toFixed(2)}\n\n`;
+    });
+    
+    alert(mensaje);
+    showToast('Top productos mostrado', 'success');
+}
+
+/**
+ * Confirma y cierra el turno actual
+ * Reinicia el contador de hora de inicio
+ */
+function confirmCloseTurn() {
+    const shiftStart = localStorage.getItem('pos_shiftStart');
+    const startTime = shiftStart ? new Date(shiftStart).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' }) : '--:--';
+    const endTime = new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+    
+    // Calcular ventas del turno
+    const shiftDate = shiftStart ? new Date(shiftStart) : new Date();
+    let shiftSales = 0;
+    let shiftOrders = 0;
+    
+    salesHistory.forEach(sale => {
+        // Si la venta fue después del inicio del turno
+        if (sale.timestamp && new Date(sale.timestamp) >= shiftDate) {
+            shiftSales += sale.total || 0;
+            shiftOrders++;
+        }
+    });
+    
+    const confirmMsg = `🔒 ¿CERRAR TURNO?\n\n` +
+        `⏰ Turno: ${startTime} - ${endTime}\n` +
+        `🧾 Pedidos del turno: ${shiftOrders}\n` +
+        `💰 Ventas del turno: Bs. ${shiftSales.toFixed(2)}\n\n` +
+        `¿Confirmar cierre de turno?`;
+    
+    if (confirm(confirmMsg)) {
+        // Reiniciar hora del turno
+        const newShiftStart = new Date().toISOString();
+        localStorage.setItem('pos_shiftStart', newShiftStart);
+        
+        // Actualizar display
+        initShiftTime();
+        
+        showToast('Turno cerrado correctamente', 'success');
+        
+        // Mostrar resumen final
+        alert(`✅ TURNO CERRADO\n\n` +
+            `📊 Resumen:\n` +
+            `• Pedidos: ${shiftOrders}\n` +
+            `• Total: Bs. ${shiftSales.toFixed(2)}\n\n` +
+            `🆕 Nuevo turno iniciado a las ${new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}`);
+    }
+}
+
+/**
+ * Función auxiliar para obtener ventas filtradas
+ * Ahora retorna todas las ventas ya que los filtros fueron removidos
+ */
+function getFilteredSales() {
+    return salesHistory;
+}
