@@ -59,7 +59,7 @@ body {
 .main-header {
     background: linear-gradient(135deg, var(--primary), var(--primary-dark));
     color: #fff;
-    padding: 1rem 1.5rem;
+    padding: 1.25rem 2rem;
     position: sticky;
     top: 0;
     z-index: 100;
@@ -79,15 +79,15 @@ body {
 .brand {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 1.25rem;
 }
 
 .logo-svg {
-    width: 70px;
-    height: 70px;
+    width: 100px;
+    height: 100px;
     background: rgba(255,255,255,0.15);
-    padding: .4rem;
-    border-radius: var(--radius-md);
+    padding: .5rem;
+    border-radius: var(--radius-lg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -105,12 +105,12 @@ body {
 
 .brand-text h1 {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.8rem;
+    font-size: 2.2rem;
     letter-spacing: 3px;
 }
 
 .tagline {
-    font-size: .85rem;
+    font-size: 1rem;
     opacity: .9;
 }
 
@@ -209,7 +209,7 @@ body {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
     position: sticky;
-    top: 72px;
+    top: 130px;
     z-index: 90;
 }
 
@@ -378,8 +378,8 @@ body {
     display: flex;
     flex-direction: column;
     position: sticky;
-    top: 150px;
-    max-height: calc(100vh - 170px);
+    top: 200px;
+    max-height: calc(100vh - 220px);
 }
 
 .cart-header {
@@ -1472,9 +1472,26 @@ body {
     .kpi-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+
+    .logo-svg {
+        width: 85px;
+        height: 85px;
+    }
+
+    .brand-text h1 {
+        font-size: 1.9rem;
+    }
+
+    .main-nav {
+        top: 115px;
+    }
 }
 
 @media (max-width: 768px) {
+    .main-header {
+        padding: 1rem;
+    }
+
     .header-content {
         flex-direction: column;
         text-align: center;
@@ -1482,6 +1499,20 @@ body {
 
     .brand {
         justify-content: center;
+        gap: 1rem;
+    }
+
+    .logo-svg {
+        width: 65px;
+        height: 65px;
+    }
+
+    .brand-text h1 {
+        font-size: 1.5rem;
+    }
+
+    .tagline {
+        font-size: .8rem;
     }
 
     .header-actions {
