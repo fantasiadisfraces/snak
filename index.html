@@ -6,7 +6,6 @@
     <meta name="theme-color" content="#ff6f00">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="description" content="Sistema de Punto de Venta para Restaurante">
     <title>🍗 Sistema de Caja - Milanesas & Pollo</title>
     
     <!-- Fuentes -->
@@ -16,6 +15,10 @@
     
     <!-- Estilos -->
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- Google APIs - IMPORTANTE: Cargar primero -->
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </head>
 <body>
     <!-- ==================== HEADER ==================== -->
@@ -45,6 +48,7 @@
                         <span id="btnGoogleText">Conectar</span>
                     </button>
                 </div>
+                <span class="user-email" id="userEmail"></span>
             </div>
         </div>
     </header>
@@ -367,14 +371,8 @@
     <!-- Chart.js para gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- Google API - Cargar antes del script principal -->
-    <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-    <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-    
-    <!-- Configuración (credenciales) -->
+    <!-- IMPORTANTE: config.js DEBE cargarse ANTES de script.js -->
     <script src="config.js"></script>
-    
-    <!-- Script principal -->
     <script src="script.js"></script>
 </body>
 </html>
