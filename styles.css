@@ -116,7 +116,7 @@ body {
 .header-actions {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
+    gap: 1rem;
 }
 
 .datetime {
@@ -127,6 +127,19 @@ body {
     background: rgba(255,255,255,0.15);
     padding: 0.5rem 1rem;
     border-radius: var(--radius-md);
+}
+
+.user-email {
+    font-size: 0.85rem;
+    background: rgba(255,255,255,0.2);
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    display: none;
+}
+
+.user-email:not(:empty) {
+    display: block;
 }
 
 .google-connection {
@@ -1575,9 +1588,14 @@ body {
     .header-actions {
         width: 100%;
         justify-content: center;
+        flex-wrap: wrap;
     }
     
     .datetime {
+        display: none !important;
+    }
+    
+    .user-email {
         display: none !important;
     }
     
@@ -1783,6 +1801,10 @@ body {
 /* ==================== DESKTOP GRANDE ==================== */
 @media (min-width: 1400px) {
     .datetime {
+        display: block;
+    }
+    
+    .user-email:not(:empty) {
         display: block;
     }
     
