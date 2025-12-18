@@ -1016,7 +1016,7 @@ function updateCart() {
     const total = calculateTotal();
 
     if (cart.length === 0) {
-        container.innerHTML = '<div class="empty-cart"><div class="empty-icon">🛒</div><p>Agrega productos</p></div>';
+        container.innerHTML = '<div class="empty-cart"><div class="empty-icon">🍽️</div><p>Agrega productos</p></div>';
         document.getElementById('btnPay').disabled = true;
     } else {
         let html = '';
