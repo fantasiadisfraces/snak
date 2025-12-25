@@ -1,11 +1,13 @@
 // ╔════════════════════════════════════════════════════════════════════════════╗
 // ║                    PANTALLA DE COCINA - kitchen.js                          ║
 // ║                         Mindy's Fast Food                                   ║
+// ║                         Versión 2.4 CORREGIDA                               ║
 // ║                                                                             ║
 // ║  Sistema de visualización de pedidos para chefs                             ║
 // ║  - Conexión a Google Sheets para sincronización en tiempo real              ║
 // ║  - Visualización tipo post-it de los pedidos                                ║
 // ║  - Control de estados: PENDIENTE → PREPARANDO → ENTREGADO                  ║
+// ║  - AHORA comparte sesión con la caja principal                              ║
 // ╚════════════════════════════════════════════════════════════════════════════╝
 
 
@@ -19,7 +21,14 @@ const SPREADSHEET_ID = CONFIG.GOOGLE_SHEET_ID;
 const SHEETS = CONFIG.SHEETS;
 
 const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
-const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCOPES - CORREGIDO: Ahora incluye userinfo para obtener email
+// ═══════════════════════════════════════════════════════════════════════════════
+const SCOPES =
+    'https://www.googleapis.com/auth/spreadsheets ' +
+    'https://www.googleapis.com/auth/userinfo.profile ' +
+    'https://www.googleapis.com/auth/userinfo.email';
 
 // Variables de estado
 let tokenClient;
@@ -30,8 +39,19 @@ let currentOrders = [];
 let previousOrderCount = 0;
 let refreshInterval = null;
 
+// Variables de usuario - NUEVO
+let emailUsuario = '';
+let usuarioAutorizado = false;
+let nombreUsuario = '';
+
 // Colores para los post-its (se asignan cíclicamente)
 const POSTIT_COLORS = ['color-0', 'color-1', 'color-2', 'color-3', 'color-4', 'color-5'];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CLAVE DE SESIÓN COMPARTIDA - CORREGIDO
+// ═══════════════════════════════════════════════════════════════════════════════
+// Usar la MISMA clave que el sistema principal para compartir sesión
+const TOKEN_STORAGE_KEY = 'pos_google_token';
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -72,8 +92,8 @@ function checkReady() {
     if (gapiInited && gisInited) {
         console.log('🍳 Pantalla de Cocina lista');
         
-        // Intentar restaurar sesión
-        const savedToken = localStorage.getItem('kitchen_google_token');
+        // Intentar restaurar sesión usando la MISMA clave que el POS principal
+        const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
         if (savedToken) {
             gapi.client.setToken({ access_token: savedToken });
             verificarToken();
@@ -107,19 +127,11 @@ function handleTokenResponse(resp) {
     }
     
     gapi.client.setToken(resp);
-    localStorage.setItem('kitchen_google_token', resp.access_token);
-    isConnected = true;
+    // Guardar con la MISMA clave que el sistema principal
+    localStorage.setItem(TOKEN_STORAGE_KEY, resp.access_token);
     
-    updateConnectionStatus(true);
-    hideEmptyState();
-    
-    // Cargar pedidos inmediatamente
-    refreshOrders();
-    
-    // Iniciar actualización automática cada 5 segundos
-    startAutoRefresh();
-    
-    showToast('¡Conectado! Cargando pedidos...', 'success');
+    // Validar usuario antes de conectar
+    validarYCargarDatos();
 }
 
 function logoutGoogle() {
@@ -129,14 +141,18 @@ function logoutGoogle() {
     }
     
     gapi.client.setToken('');
-    localStorage.removeItem('kitchen_google_token');
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
     
     isConnected = false;
     currentOrders = [];
     previousOrderCount = 0;
+    emailUsuario = '';
+    usuarioAutorizado = false;
+    nombreUsuario = '';
     
     stopAutoRefresh();
     updateConnectionStatus(false);
+    hideAccessDenied();
     showEmptyState();
     renderOrders([]);
     
@@ -146,16 +162,167 @@ function logoutGoogle() {
 async function verificarToken() {
     try {
         await gapi.client.sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
-        isConnected = true;
-        updateConnectionStatus(true);
-        hideEmptyState();
-        refreshOrders();
-        startAutoRefresh();
+        // Token válido - ahora validar usuario
+        validarYCargarDatos();
         console.log('✅ Token válido');
     } catch (e) {
         console.log('⚠️ Token expirado');
         logoutGoogle();
     }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VALIDACIÓN DE USUARIOS AUTORIZADOS - NUEVO
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Función principal que valida el usuario y carga los datos si está autorizado
+ */
+async function validarYCargarDatos() {
+    try {
+        showLoading('Verificando acceso...');
+        
+        // Primero obtener el email del usuario
+        const email = await obtenerEmailUsuario();
+        
+        if (!email) {
+            hideLoading();
+            showAccessDenied('No se pudo obtener el email de la cuenta');
+            return;
+        }
+        
+        // Verificar si el usuario está autorizado
+        const autorizado = await verificarUsuarioAutorizado(email);
+        
+        if (!autorizado) {
+            hideLoading();
+            showAccessDenied(`La cuenta ${email} no está autorizada para usar este sistema`);
+            return;
+        }
+        
+        // Usuario autorizado - conectar y cargar pedidos
+        hideAccessDenied();
+        isConnected = true;
+        updateConnectionStatus(true);
+        hideEmptyState();
+        
+        showToast(`¡Bienvenido ${nombreUsuario || email}!`, 'success');
+        
+        // Cargar pedidos inmediatamente
+        refreshOrders();
+        
+        // Iniciar actualización automática cada 5 segundos
+        startAutoRefresh();
+        
+        hideLoading();
+        
+    } catch (e) {
+        console.error('Error validando usuario:', e);
+        hideLoading();
+        showAccessDenied('Error al verificar el acceso');
+    }
+}
+
+/**
+ * Obtiene el email del usuario conectado desde la API de Google
+ */
+async function obtenerEmailUsuario() {
+    try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: 'Bearer ' + gapi.client.getToken().access_token }
+        });
+        const data = await res.json();
+        emailUsuario = data.email || '';
+        return emailUsuario;
+    } catch (e) {
+        console.error('Error obteniendo email:', e);
+        return '';
+    }
+}
+
+/**
+ * Verifica si el email está en la hoja de usuarios autorizados
+ */
+async function verificarUsuarioAutorizado(email) {
+    try {
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: SHEETS.USUARIOS_AUTORIZADOS + '!A2:D100'
+        });
+        
+        const rows = response.result.values || [];
+        
+        // Si la hoja está vacía, permitir acceso (primera configuración)
+        if (rows.length === 0) {
+            console.log('⚠️ Hoja de usuarios vacía - permitiendo acceso');
+            usuarioAutorizado = true;
+            nombreUsuario = email.split('@')[0];
+            return true;
+        }
+        
+        // Buscar el email en la lista
+        const emailLower = email.toLowerCase().trim();
+        
+        for (const row of rows) {
+            const emailFila = (row[0] || '').toLowerCase().trim();
+            const nombre = row[1] || '';
+            const rol = row[2] || '';
+            const activo = (row[3] || 'TRUE').toString().toUpperCase();
+            
+            if (emailFila === emailLower) {
+                // Verificar si está activo
+                if (activo === 'TRUE' || activo === 'SI' || activo === '1') {
+                    usuarioAutorizado = true;
+                    nombreUsuario = nombre || email.split('@')[0];
+                    console.log(`✅ Usuario autorizado: ${nombreUsuario} (${rol})`);
+                    return true;
+                } else {
+                    console.log('❌ Usuario desactivado');
+                    return false;
+                }
+            }
+        }
+        
+        console.log('❌ Email no encontrado en la lista de autorizados');
+        return false;
+        
+    } catch (e) {
+        console.error('Error verificando usuario:', e);
+        // En caso de error, denegar acceso por seguridad
+        return false;
+    }
+}
+
+/**
+ * Muestra el mensaje de acceso denegado
+ */
+function showAccessDenied(mensaje) {
+    const grid = document.getElementById('ordersGrid');
+    if (grid) {
+        grid.innerHTML = `
+            <div class="no-orders" style="color: #ff5252;">
+                <div class="no-icon">🚫</div>
+                <h3>Acceso Denegado</h3>
+                <p>${mensaje}</p>
+                <p style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.7;">
+                    Contacta al administrador para solicitar acceso
+                </p>
+            </div>
+        `;
+    }
+    
+    // Desconectar
+    isConnected = false;
+    updateConnectionStatus(false);
+    stopAutoRefresh();
+}
+
+/**
+ * Oculta el mensaje de acceso denegado
+ */
+function hideAccessDenied() {
+    // Se limpiará cuando se rendericen los pedidos
 }
 
 
