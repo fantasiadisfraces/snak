@@ -13,10 +13,17 @@
     <!-- Estilos de Cocina -->
     <link rel="stylesheet" href="kitchen.css">
 
-    <!-- CONFIG debe cargarse ANTES que kitchen.js -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- IMPORTANTE: El orden de carga de scripts es CRÍTICO                     -->
+    <!-- 1. Primero config.js (configuración)                                    -->
+    <!-- 2. Luego kitchen.js (define gapiLoaded y gisLoaded)                     -->
+    <!-- 3. Por último los scripts de Google (llaman a esas funciones)           -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    
     <script src="config.js"></script>
+    <script src="kitchen.js"></script>
 
-    <!-- Google APIs -->
+    <!-- Google APIs - DESPUÉS de kitchen.js para que las funciones existan -->
     <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 </head>
@@ -82,7 +89,7 @@
 
 <!-- ==================== AUDIO PARA NOTIFICACIONES ==================== -->
 <audio id="notificationSound" preload="auto">
-    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleU4rT4nZv3tjBQA0a6W8qX5YSkqLrLqneU8/P2+kvJxpQzM8abC9qYhcPTdPlLS8qYVTPzI/XT1tTj1hfIyRg3RhWGBwe4uYmZOIeWxjYmtwf4yXmZOLgHZsZmlwf4yWl5KLgHZsZmlwgIuUlZCJfnVsZmduf4qTlZGJfnVsZWdvfoqTlJCIfnRrZGZuf4mSlJCHfXNrZGVufomRk4+GfHJqY2VufomRkpCGe3FqY2RtfYiRko6Fe3JqYmRtfYiQko6EenFpYmNsfYiQkY2EenFpYmNsfIePkY2Een+BhYmKioqHhIB8eHVycHByc3Z4fH+ChYiJioqJh4SAfHh1cnBwcnN2eHyAgoWIiYqKiYeEgHx4dXJwcHJzdnh8gIKFiImKiomHhIB8eHVycXFyc3Z4fICChYiJioqJh4SAfHh1cnFxcnN2eHyAgoWIiYqJiIaEgHt4dXJxcXJzd3l8gIKFiIqKiomHhIB8eHVycXFyc3d5fICChYiKiomJh4SEgXx5dnNwcHJzdnh8gIKFiImKiomIhoSAfHl2c3FxcnR3eXyAgoWIiYqKiYeEgHx4dXJwcHJzdnh8gIKFiImKiomHhIB8eHVycHByc3Z4fH+ChYiJioqJh4SAfHh1cnBwcnN2eHyAgoWIiYqKiYeEgHx4dXJwcHJzd3h8gIKFiImKiomHhIB8eHVycXFyc3Z4fICChYiJioqJh4SAfHh1cnFxcnN2eHyAgoWIiYqJiIaEgHt4dXJxcXJzd3l8gIKFiIqKiomHhIB8eHVycXFyc3d5fICChYiKiomJh4SEgXx5dnNwcHJzdnh8gIKFiImKiomIhoSAfHl2c3FxcnR3eXyAgoWIiYqKiYeEgHx4dXJwcHJzdnh8gIKFiImKiomHhIB8eHVycHByc3Z4fH+ChYiJioqJh4SAfHh1cnBwcnN2eHyAgoWIiYqKiYeEgHx4dXJwcHJzd3h8gIKFiImKiomHhIB8eHVycXFyc3Z4fICChYiJioqJh4SAfHh1cnFxcnN2eHyAgoWIiYqJiIaEgHt4dXJxcXJzd3l8gIKFiIqKiomHhIB8eHVycXFyc3d5fICChYiKiomJh4SEgXx5dnNwcHJzdnh8gIKFiImKiomIhoSAfHl2c3FxcnR3eXyAgoWIiYqKiYeEgHx4dXJwcHJzdnh8gIKFiImKiomHhIB8eHVycHByc3Z4fH+ChYiJioqJh4SAfHh1cnBwcnN2eHyAgoWIiYqKiYeEgHx4dXJwcHJzd3h8gIKFiImKiomHhIB8eHVycXFyc3Z4fICChYiJioqJh4SAfHh1cnFxcnN2eHyAgoWIiYqJiIaEgHt4dXJxcXJzd3l8gIKFiIqKiomHhIB8eHVycXFyc3d5fICChYiKiomJh4SEgXx5dnNwcA==" type="audio/wav">
+    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleU4rT4nZv3tjBQA0a6W8qX5YSkqLrLqneU8/P2+kvJxpQzM8abC9qYhcPTdPlLS8qYVTPzI/XT1tTj1hfIyRg3RhWGBwe4uYmZOIeWxjYmtwf4yXmZOLgHZsZmlwf4yWl5KLgHZsZmlwgIuUlZCJfnVsZmduf4qTlZGJfnVsZWdvfoqTlJCIfnRrZGZuf4mSlJCHfXNrZGVufomRk4+GfHJqY2VufomRkpCGe3FqY2RtfYiRko6Fe3JqYmRtfYiQko6EenFpYmNsfYiQkY2EenFpYmNsfIePkY2Een+BhYmKioqHhIB8eHVycHByc3Z4fH+ChYiJioqJh4SAfHh1cnBwcnN2eHyAgoWIiYqKiYeEgHx4dXJwcHJzdnh8gIKFiImKiomHhIB8eHVycXFyc3Z4fICChYiJioqJh4SAfHh1cnFxcnN2eHyAgoWIiYqJiIaEgHt4dXJxcXJzd3l8gIKFiIqKiomHhIB8eHVycXFyc3d5fICChYiKiomJh4SEgXx5dnNwcHJzdnh8gIKFiImKiomIhoSAfHl2c3FxcnR3eXyAgoWIiYqKiYeEgHx4dXJwcHJzdnh8gIKFiImKiomHhIB8eHVycHByc3Z4fH+ChYiJioqJh4SAfHh1cnBwcnN2eHyAgoWIiYqKiYeEgHx4dXJwcHJzd3h8gIKFiImKiomHhIB8eHVycXFyc3Z4fICChYiJioqJh4SAfHh1cnFxcnN2eHyAgoWIiYqJiIaEgHt4dXJxcXJzd3l8gIKFiIqKiomHhIB8eHVycXFyc3d5fICChYiKiomJh4SEgXx5dnNwcHJzdnh8gIKFiImKiomIhoSAfHl2c3FxcnR3eXyAgoWIiYqKiYeEgHx4dXJwcHJzdnh8gIKFiImKiomHhIB8eHVycHByc3Z4fH+ChYiJioqJh4SAfHh1cnBwcnN2eHyAgoWIiYqKiYeEgHx4dXJwcHJzd3h8gIKFiImKiomHhIB8eHVycXFyc3Z4fICChYiJioqJh4SAfHh1cnFxcnN2eHyAgoWIiYqJiIaEgHt4dXJxcXJzd3l8gIKFiIqKiomHhIB8eHVycXFyc3d5fICChYiKiomJh4SEgXx5dnNwcHJzdnh8gIKFiImKiomIhoSAfHl2c3FxcnR3eXyAgoWIiYqKiYeEgHx4dXJwcHJzdnh8gIKFiImKiomHhIB8eHVycHByc3Z4fH+ChYiJioqJh4SAfHh1cnBwcnN2eHyAgoWIiYqKiYeEgHx4dXJwcHJzd3h8gIKFiImKiomHhIB8eHVycXFyc3Z4fICChYiJioqJh4SAfHh1cnFxcnN2eHyAgoWIiYqJiIaEgHt4dXJxcXJzd3l8gIKFiIqKiomHhIB8eHVycXFyc3d5fICChYiKiomJh4SEgXx5dnNwcHJzdnh8gIKFiImKiomIhoSAfHl2c3FxcnR3eXyAgoWIiYqKiYeEgHx4dXJwcHJzdnh8gIKFiImKiomHhIB8eHVycHByc3Z4fH+ChYiJioqJh4SAfHh1cnBwcnN2eHyAgoWIiYqKiYeEgHx4dXJwcHJzd3h8gIKFiImKiomHhIB8eHVycXFyc3Z4fICChYiJioqJh4SAfHh1cnFxcnN2eHyAgoWIiYqJiIaEgHt4dXJxcXJzd3l8gIKFiIqKiomHhIB8eHVycXFyc3d5fICChYiKiomJh4SEgXx5dnNwcA==" type="audio/wav">
 </audio>
 
 <!-- ==================== TOAST ==================== -->
@@ -96,9 +103,6 @@
     <div class="loading-spinner"></div>
     <div class="loading-text" id="loadingText">Cargando...</div>
 </div>
-
-<!-- Script de cocina -->
-<script src="kitchen.js"></script>
 
 </body>
 </html>
