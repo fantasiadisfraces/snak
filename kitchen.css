@@ -925,3 +925,107 @@ body {
         margin-top: 25px;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   FIX TOAST PARA MÓVILES EN COCINA
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .toast {
+        bottom: 20px !important;
+        left: 50% !important;
+        transform: translateX(-50%) translateY(100px) !important;
+        width: 90% !important;
+        max-width: 320px !important;
+        padding: 0.875rem 1.25rem !important;
+        font-size: 0.95rem !important;
+        border-radius: 12px !important;
+    }
+    
+    .toast.show {
+        transform: translateX(-50%) translateY(0) !important;
+    }
+    
+    .toast-icon {
+        font-size: 1.2rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .kitchen-header {
+        padding: 0.75rem !important;
+    }
+    
+    .brand {
+        gap: 0.5rem !important;
+    }
+    
+    .kitchen-logo {
+        width: 45px !important;
+        height: 45px !important;
+        font-size: 1.8rem !important;
+    }
+    
+    .brand-text h1 {
+        font-size: 1.5rem !important;
+    }
+    
+    .tagline {
+        font-size: 0.7rem !important;
+    }
+    
+    .pending-count {
+        padding: 0.5rem 1rem !important;
+    }
+    
+    .count-number {
+        font-size: 1.8rem !important;
+    }
+    
+    .count-label {
+        font-size: 0.65rem !important;
+    }
+    
+    .datetime {
+        font-size: 0.8rem !important;
+        display: none;
+    }
+    
+    .btn-connect,
+    .btn-refresh {
+        padding: 0.5rem 0.75rem !important;
+        font-size: 0.8rem !important;
+    }
+    
+    .connection-status {
+        padding: 0.35rem 0.5rem !important;
+        font-size: 0.75rem !important;
+    }
+    
+    .orders-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1.5rem !important;
+        padding: 0.5rem !important;
+    }
+    
+    .order-postit {
+        margin-top: 25px !important;
+    }
+    
+    .ficha-badge {
+        padding: 0.35rem 1rem !important;
+    }
+    
+    .ficha-number {
+        font-size: 1.6rem !important;
+    }
+    
+    .order-number {
+        font-size: 1.8rem !important;
+    }
+    
+    .btn-status {
+        padding: 0.75rem !important;
+        font-size: 0.85rem !important;
+    }
+}
