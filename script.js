@@ -865,7 +865,7 @@ async function setupGoogleSheet() {
             [SHEETS.VENTAS]: ['ID_Venta', 'Fecha', 'Hora', 'Total', 'Pago_Recibido', 'Cambio', 'Usuario', 'Timestamp'],
             [SHEETS.DETALLE_VENTAS]: ['ID_Detalle', 'ID_Venta', 'ID_Producto', 'Nombre_Producto', 'ID_Acompañamiento', 'Nombre_Acompañamiento', 'Cantidad', 'Precio_Unitario', 'Subtotal', 'ID_Categoria'],
             [SHEETS.USUARIOS_AUTORIZADOS]: ['Email', 'Nombre', 'Rol', 'Activo'],
-            [SHEETS.PEDIDOS_COCINA]: ['ID_Pedido', 'Fecha', 'Hora', 'Items_JSON', 'Estado', 'Timestamp', 'Usuario']
+            [SHEETS.PEDIDOS_COCINA]: ['ID_Pedido', 'Fecha', 'Hora', 'Items_JSON', 'Estado', 'Timestamp', 'Usuario', 'Ficha', 'Cliente']
         };
 
         // Escribir los encabezados en cada hoja
@@ -1327,10 +1327,24 @@ function showPaymentModal() {
     document.getElementById('changeAmount').textContent = 'Bs. 0.00';
     document.getElementById('changeDisplay').classList.remove('insufficient');
     document.getElementById('btnConfirmPay').disabled = true;
+    
+    // Limpiar campos de ficha y cliente
+    const fichaInput = document.getElementById('fichaNumber');
+    const clienteInput = document.getElementById('clienteName');
+    if (fichaInput) fichaInput.value = '';
+    if (clienteInput) clienteInput.value = '';
+    
     document.getElementById('paymentModal').classList.add('active');
 
-    // Enfocar el campo de monto recibido
-    setTimeout(() => document.getElementById('amountReceived').focus(), 100);
+    // Enfocar el campo de ficha primero (más importante para el flujo)
+    setTimeout(() => {
+        const fichaEl = document.getElementById('fichaNumber');
+        if (fichaEl) {
+            fichaEl.focus();
+        } else {
+            document.getElementById('amountReceived').focus();
+        }
+    }, 100);
 }
 
 /**
@@ -1382,12 +1396,18 @@ function calculateChange() {
  * Guarda en Google Sheets y muestra el modal de éxito
  */
 async function confirmPayment() {
+    // Obtener ficha y nombre del cliente ANTES de cerrar el modal
+    const fichaInput = document.getElementById('fichaNumber');
+    const clienteInput = document.getElementById('clienteName');
+    const ficha = fichaInput ? fichaInput.value.trim() : '';
+    const cliente = clienteInput ? clienteInput.value.trim() : '';
+    
     closePaymentModal();
 
     const total = calculateTotal();
     const now = new Date();
 
-    // Crear objeto de venta
+    // Crear objeto de venta (ahora incluye ficha y cliente)
     const sale = {
         orderNumber: orderNumber,
         items: cart.slice(),
@@ -1396,7 +1416,9 @@ async function confirmPayment() {
         change: paymentInfo.change,
         date: now.toLocaleDateString('es-BO'),
         time: now.toLocaleTimeString('es-BO'),
-        timestamp: now.toISOString()  // Para control de turnos
+        timestamp: now.toISOString(),  // Para control de turnos
+        ficha: ficha,                   // Número de ficha
+        cliente: cliente                // Nombre del cliente
     };
 
     // Guardar en historial local
@@ -2271,26 +2293,28 @@ async function sendToKitchen(sale) {
         
         const itemsJSON = JSON.stringify(itemsForKitchen);
         
-        // Guardar en la hoja de cocina
+        // Guardar en la hoja de cocina (ahora con 9 columnas: A-I)
         await gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId: SPREADSHEET_ID,
-            range: SHEETS.PEDIDOS_COCINA + '!A:G',
+            range: SHEETS.PEDIDOS_COCINA + '!A:I',
             valueInputOption: 'RAW',
             insertDataOption: 'INSERT_ROWS',
             resource: {
                 values: [[
-                    sale.orderNumber,           // ID_Pedido
-                    sale.date,                  // Fecha
-                    sale.time,                  // Hora
-                    itemsJSON,                  // Items en JSON
-                    'PENDIENTE',                // Estado inicial
-                    sale.timestamp,             // Timestamp para ordenar
-                    emailUsuario || 'caja'      // Usuario que tomó el pedido
+                    sale.orderNumber,           // A: ID_Pedido
+                    sale.date,                  // B: Fecha
+                    sale.time,                  // C: Hora
+                    itemsJSON,                  // D: Items en JSON
+                    'PENDIENTE',                // E: Estado inicial
+                    sale.timestamp,             // F: Timestamp para ordenar
+                    emailUsuario || 'caja',     // G: Usuario que tomó el pedido
+                    sale.ficha || '',           // H: Número de ficha
+                    sale.cliente || ''          // I: Nombre del cliente
                 ]]
             }
         });
         
-        console.log('🍳 Pedido #' + sale.orderNumber + ' enviado a cocina');
+        console.log('🍳 Pedido #' + sale.orderNumber + ' enviado a cocina (Ficha: ' + (sale.ficha || 'N/A') + ')');
         return true;
         
     } catch (error) {
@@ -2338,7 +2362,7 @@ async function getKitchenOrders() {
     try {
         const response = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: SHEETS.PEDIDOS_COCINA + '!A2:G500'
+            range: SHEETS.PEDIDOS_COCINA + '!A2:I500'  // Ahora incluye columnas H (Ficha) e I (Cliente)
         });
         
         const rows = response.result.values || [];
@@ -2364,7 +2388,9 @@ async function getKitchenOrders() {
                     items: items,
                     status: estado,
                     timestamp: row[5] || '',
-                    user: row[6] || ''
+                    user: row[6] || '',
+                    ficha: row[7] || '',      // Número de ficha
+                    cliente: row[8] || ''     // Nombre del cliente
                 });
             }
         });
