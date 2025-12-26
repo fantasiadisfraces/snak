@@ -37,6 +37,8 @@ let isConnected = false;
 let currentOrders = [];
 let previousOrderIds = new Set();
 let refreshInterval = null;
+let hasLoadedOnce = false;  // Bandera para saber si ya cargó al menos una vez
+let lastKnownOrderIds = []; // Respaldo de IDs conocidos
 
 // Variables de usuario
 let emailUsuario = '';
@@ -137,6 +139,7 @@ function logoutGoogle() {
     isConnected = false;
     currentOrders = [];
     previousOrderIds = new Set();
+    hasLoadedOnce = false;  // Reiniciar bandera
     emailUsuario = '';
     usuarioAutorizado = false;
     nombreUsuario = '';
@@ -372,22 +375,60 @@ async function refreshOrders(isFirstLoad = false) {
     try {
         const orders = await getKitchenOrders();
         
-        const currentIds = new Set(orders.map(o => o.orderNumber));
-        const newOrders = orders.filter(o => !previousOrderIds.has(o.orderNumber));
-        
-        if (newOrders.length > 0 && !isFirstLoad && previousOrderIds.size > 0) {
-            playAlarmSound();
-            showToast(`🔔 ¡${newOrders.length} nuevo${newOrders.length > 1 ? 's' : ''} pedido${newOrders.length > 1 ? 's' : ''}!`, 'warning');
+        // Si no hay órdenes o la consulta falló, no hacer nada con el sonido
+        if (!orders || orders.length === 0) {
+            currentOrders = [];
+            updatePendingCount(0);
+            renderOrdersSmooth([], []);
+            return;
         }
         
+        const currentIds = new Set(orders.map(o => o.orderNumber));
+        
+        // Detectar pedidos REALMENTE nuevos
+        let newOrders = [];
+        
+        // Solo buscar nuevos pedidos si:
+        // 1. Ya cargamos al menos una vez antes
+        // 2. No es la primera carga
+        // 3. Tenemos IDs previos para comparar
+        if (hasLoadedOnce && !isFirstLoad && previousOrderIds.size > 0) {
+            // Filtrar pedidos que NO existían antes
+            newOrders = orders.filter(o => {
+                const isNew = !previousOrderIds.has(o.orderNumber);
+                
+                // Verificar que el pedido sea reciente (menos de 60 segundos)
+                if (isNew && o.timestamp) {
+                    const orderTime = new Date(o.timestamp);
+                    const now = new Date();
+                    const diffSeconds = (now - orderTime) / 1000;
+                    
+                    // Solo considerar "nuevo" si tiene menos de 60 segundos
+                    return diffSeconds < 60;
+                }
+                
+                return false;
+            });
+            
+            // Solo sonar si hay pedidos genuinamente nuevos
+            if (newOrders.length > 0) {
+                console.log('🔔 Nuevos pedidos detectados:', newOrders.map(o => o.orderNumber));
+                playAlarmSound();
+                showToast(`🔔 ¡${newOrders.length} nuevo${newOrders.length > 1 ? 's' : ''} pedido${newOrders.length > 1 ? 's' : ''}!`, 'warning');
+            }
+        }
+        
+        // Actualizar estado
         previousOrderIds = currentIds;
         currentOrders = orders;
+        hasLoadedOnce = true;
         
         updatePendingCount(orders.length);
         renderOrdersSmooth(orders, newOrders.map(o => o.orderNumber));
         
     } catch (error) {
         console.error('Error refrescando pedidos:', error);
+        // No modificar previousOrderIds si hay error para evitar falsos positivos
     }
 }
 
