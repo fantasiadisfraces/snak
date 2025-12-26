@@ -2499,3 +2499,286 @@ body {
         border-radius: 0;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   FIX TOAST PARA MÓVILES - VISIBLE Y CENTRADO
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .toast {
+        position: fixed;
+        top: auto !important;
+        bottom: 80px !important;
+        left: 50% !important;
+        transform: translateX(-50%) scale(0.9) !important;
+        width: 90% !important;
+        max-width: 320px !important;
+        padding: 0.875rem 1.25rem !important;
+        font-size: 0.95rem !important;
+        border-radius: 12px !important;
+        z-index: 9999 !important;
+    }
+    
+    .toast.show {
+        transform: translateX(-50%) scale(1) !important;
+        opacity: 1 !important;
+    }
+    
+    .toast-icon {
+        font-size: 1.2rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .toast {
+        bottom: 70px !important;
+        width: 92% !important;
+        padding: 0.75rem 1rem !important;
+        font-size: 0.9rem !important;
+        gap: 0.5rem !important;
+    }
+    
+    .toast-icon {
+        font-size: 1.1rem !important;
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   FIX MODAL DE PAGO PARA MÓVILES - COMPACTO Y USABLE
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+    /* Overlay del modal */
+    .modal-overlay {
+        padding: 0.5rem !important;
+        align-items: flex-start !important;
+        padding-top: 1rem !important;
+    }
+    
+    /* Contenedor del modal */
+    .modal-container {
+        max-height: 92vh !important;
+        border-radius: 16px !important;
+        margin: 0 !important;
+    }
+    
+    .payment-modal {
+        max-height: 92vh;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* Header del modal */
+    .modal-header {
+        padding: 0.75rem 1rem !important;
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+    
+    .modal-header h2 {
+        font-size: 1rem !important;
+    }
+    
+    .modal-close {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 1.2rem !important;
+    }
+    
+    /* Sección de Ficha y Cliente */
+    .customer-info-section {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 0.5rem !important;
+        padding: 0.75rem !important;
+        margin: 0 0.75rem 0.5rem !important;
+    }
+    
+    .customer-field {
+        flex: 1;
+        gap: 0.25rem !important;
+    }
+    
+    .customer-field label {
+        font-size: 0.7rem !important;
+    }
+    
+    .customer-input {
+        padding: 0.5rem !important;
+        font-size: 0.9rem !important;
+        border-radius: 6px !important;
+    }
+    
+    .customer-input.ficha-input {
+        font-size: 1.3rem !important;
+        padding: 0.4rem !important;
+    }
+    
+    /* Total a cobrar */
+    .payment-total {
+        padding: 1rem !important;
+    }
+    
+    .payment-total .label {
+        font-size: 0.75rem !important;
+        margin-bottom: 0.15rem !important;
+    }
+    
+    .payment-total .amount {
+        font-size: 2rem !important;
+    }
+    
+    /* Sección de monto recibido */
+    .payment-input-section {
+        padding: 0.75rem 1rem !important;
+    }
+    
+    .payment-input-section label {
+        font-size: 0.8rem !important;
+        margin-bottom: 0.35rem !important;
+    }
+    
+    .payment-input {
+        padding: 0.65rem !important;
+        font-size: 1.3rem !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Botones rápidos */
+    .quick-amounts {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 0.35rem !important;
+        margin-top: 0.5rem !important;
+    }
+    
+    .quick-amounts button {
+        padding: 0.5rem 0.25rem !important;
+        font-size: 0.75rem !important;
+        border-radius: 6px !important;
+    }
+    
+    /* Display del cambio */
+    .change-display {
+        padding: 0.75rem !important;
+        margin: 0 1rem !important;
+    }
+    
+    .change-display .label {
+        font-size: 0.75rem !important;
+    }
+    
+    .change-display .amount {
+        font-size: 1.4rem !important;
+    }
+    
+    /* Botones de acción del modal */
+    .modal-actions {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 0.5rem !important;
+        padding: 0.75rem !important;
+        position: sticky;
+        bottom: 0;
+        background: white;
+        border-top: 1px solid var(--border);
+    }
+    
+    .btn-modal {
+        flex: 1 !important;
+        padding: 0.75rem 0.5rem !important;
+        font-size: 0.85rem !important;
+        border-radius: 8px !important;
+        white-space: nowrap;
+    }
+    
+    .btn-modal.secondary {
+        flex: 0.8 !important;
+    }
+    
+    .btn-modal.primary {
+        flex: 1.2 !important;
+    }
+}
+
+/* Pantallas muy pequeñas */
+@media (max-width: 360px) {
+    .customer-info-section {
+        flex-direction: column !important;
+    }
+    
+    .quick-amounts {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    .modal-actions {
+        flex-direction: column !important;
+    }
+    
+    .btn-modal {
+        width: 100% !important;
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   FIX MODAL DE ACOMPAÑAMIENTO PARA MÓVILES
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+    .side-options {
+        padding: 0.75rem !important;
+        gap: 0.5rem !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    .side-option {
+        padding: 0.75rem !important;
+        font-size: 0.85rem !important;
+        border-radius: 8px !important;
+    }
+    
+    .modal-subtitle {
+        padding: 0.75rem 1rem 0 !important;
+        font-size: 0.9rem !important;
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   FIX MODAL DE ÉXITO PARA MÓVILES
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+    .success-modal {
+        padding: 1.25rem !important;
+    }
+    
+    .success-icon {
+        font-size: 2.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .success-modal h2 {
+        font-size: 1.2rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+    
+    .success-details {
+        padding: 0.75rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+    
+    .detail-row {
+        font-size: 0.9rem !important;
+        padding: 0.35rem 0 !important;
+    }
+    
+    .sync-status {
+        font-size: 0.8rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+}
