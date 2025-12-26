@@ -2621,7 +2621,7 @@ body {
         font-size: 0.85rem !important;
         border-radius: 6px !important;
         border-width: 1px !important;
-        height: 36px !important;
+        height: 30px !important;
     }
     
     .customer-input.ficha-input {
@@ -2730,7 +2730,7 @@ body {
     }
     
     .customer-input {
-        height: 32px !important;
+        height: 28px !important;
         font-size: 0.8rem !important;
     }
     
