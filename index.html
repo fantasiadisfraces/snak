@@ -315,6 +315,18 @@
             <button class="modal-close" onclick="closePaymentModal()">&times;</button>
         </div>
 
+        <!-- NUEVO: Campos de Ficha y Cliente -->
+        <div class="customer-info-section">
+            <div class="customer-field">
+                <label for="fichaNumber">🔔 Número de Ficha</label>
+                <input type="number" id="fichaNumber" class="customer-input ficha-input" placeholder="Ej: 25" min="1" max="999">
+            </div>
+            <div class="customer-field">
+                <label for="clienteName">👤 Nombre del Cliente</label>
+                <input type="text" id="clienteName" class="customer-input" placeholder="Ej: Juan Pérez" maxlength="50">
+            </div>
+        </div>
+
         <div class="payment-total">
             <span class="label">Total a Cobrar</span>
             <span class="amount" id="paymentTotal">Bs. 0.00</span>
