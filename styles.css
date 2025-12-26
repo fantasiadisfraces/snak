@@ -2629,7 +2629,7 @@ body {
         font-size: 0.85rem !important;
         border-radius: 6px !important;
         border-width: 1px !important;
-        height: 38px !important;
+        height: 30px !important;
         width: 100% !important;
         box-sizing: border-box !important;
     }
@@ -2741,7 +2741,7 @@ body {
     
     .customer-input.ficha-input {
         font-size: 1rem !important;
-        height: 34px !important;
+        height: 26px !important;
     }
     
     .quick-amounts {
