@@ -2062,13 +2062,14 @@ body {
 /* Estilos para campos de ficha y cliente en modal de pago */
 .customer-info-section {
     display: grid;
-    grid-template-columns: 1fr 2fr;
+    grid-template-columns: 120px 1fr;
     gap: 1rem;
     margin-bottom: 1.5rem;
     padding: 1rem;
     background: linear-gradient(135deg, rgba(255, 111, 0, 0.1), rgba(255, 145, 0, 0.05));
     border-radius: 12px;
     border: 2px dashed rgba(255, 111, 0, 0.3);
+    align-items: end;
 }
 
 .customer-field {
@@ -2081,6 +2082,11 @@ body {
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-secondary);
+    text-align: center;
+    min-height: 2.5em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .customer-input {
@@ -2091,6 +2097,8 @@ body {
     font-family: inherit;
     transition: all 0.3s ease;
     background: var(--bg-secondary);
+    height: 48px;
+    box-sizing: border-box;
 }
 
 .customer-input:focus {
@@ -2423,12 +2431,20 @@ body {
     }
     
     .customer-info-section {
-        grid-template-columns: 90px 1fr !important;
         display: grid !important;
+        grid-template-columns: 90px 1fr !important;
         gap: 0.5rem !important;
         padding: 0.6rem !important;
         margin: 0.5rem !important;
         box-sizing: border-box !important;
+        align-items: end !important;
+    }
+    
+    .customer-field label {
+        min-height: 2em !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
     
     .customer-input {
@@ -2455,6 +2471,7 @@ body {
         margin: 0.75rem !important;
         box-sizing: border-box !important;
         width: auto !important;
+        align-items: end !important;
     }
     
     .customer-field {
@@ -2465,6 +2482,10 @@ body {
     .customer-field label {
         font-size: 0.75rem !important;
         text-align: center;
+        min-height: 2.2em !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
     
     .customer-input {
@@ -2661,17 +2682,15 @@ body {
     
     /* Sección de Ficha y Cliente - COMPACTA */
     .customer-info-section {
-        display: flex !important;
-        flex-direction: row !important;
+        display: grid !important;
+        grid-template-columns: 80px 1fr !important;
         gap: 0.5rem !important;
         padding: 0.5rem !important;
         margin: 0.5rem !important;
         border-width: 1px !important;
         box-sizing: border-box !important;
         width: auto !important;
-        display: grid !important;
-        grid-template-columns: 80px 1fr !important;
-        align-items: start !important;
+        align-items: end !important;
     }
     
     .customer-field {
@@ -2693,6 +2712,10 @@ body {
         font-size: 0.65rem !important;
         white-space: nowrap;
         text-align: center;
+        min-height: 2em !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
     
     .customer-input {
@@ -2803,6 +2826,11 @@ body {
     .customer-info-section {
         grid-template-columns: 70px 1fr !important;
         gap: 0.4rem !important;
+        align-items: end !important;
+    }
+    
+    .customer-field label {
+        min-height: 1.8em !important;
     }
     
     .customer-input {
