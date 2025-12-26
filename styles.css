@@ -2423,7 +2423,78 @@ body {
     }
     
     .customer-info-section {
-        grid-template-columns: 1fr 1.5fr;
+        grid-template-columns: 90px 1fr !important;
+        display: grid !important;
+        gap: 0.5rem !important;
+        padding: 0.6rem !important;
+        margin: 0.5rem !important;
+        box-sizing: border-box !important;
+    }
+    
+    .customer-input {
+        height: 40px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   TABLETS (601px - 900px)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 601px) and (max-width: 900px) {
+    .modal-container {
+        max-width: 420px !important;
+    }
+    
+    .customer-info-section {
+        display: grid !important;
+        grid-template-columns: 100px 1fr !important;
+        gap: 0.75rem !important;
+        padding: 0.75rem !important;
+        margin: 0.75rem !important;
+        box-sizing: border-box !important;
+        width: auto !important;
+    }
+    
+    .customer-field {
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+    
+    .customer-field label {
+        font-size: 0.75rem !important;
+        text-align: center;
+    }
+    
+    .customer-input {
+        height: 42px !important;
+        font-size: 0.9rem !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 0.4rem 0.6rem !important;
+    }
+    
+    .customer-input.ficha-input {
+        font-size: 1.2rem !important;
+        height: 42px !important;
+    }
+    
+    .payment-total .amount {
+        font-size: 2.2rem !important;
+    }
+    
+    .payment-input {
+        font-size: 1.4rem !important;
+    }
+    
+    .quick-amounts {
+        grid-template-columns: repeat(4, 1fr) !important;
+    }
+    
+    .quick-amounts button {
+        padding: 0.6rem !important;
+        font-size: 0.85rem !important;
     }
 }
 
@@ -2629,7 +2700,7 @@ body {
         font-size: 0.85rem !important;
         border-radius: 6px !important;
         border-width: 1px !important;
-        height: 30px !important;
+        height: 38px !important;
         width: 100% !important;
         box-sizing: border-box !important;
     }
@@ -2741,7 +2812,7 @@ body {
     
     .customer-input.ficha-input {
         font-size: 1rem !important;
-        height: 26px !important;
+        height: 34px !important;
     }
     
     .quick-amounts {
