@@ -1,13 +1,15 @@
 // ╔════════════════════════════════════════════════════════════════════════════╗
 // ║                    PANTALLA DE COCINA - kitchen.js                          ║
 // ║                         Mindy's Fast Food                                   ║
-// ║                         Versión 2.4 CORREGIDA                               ║
+// ║                         Versión 2.5 MEJORADA                                ║
 // ║                                                                             ║
 // ║  Sistema de visualización de pedidos para chefs                             ║
 // ║  - Conexión a Google Sheets para sincronización en tiempo real              ║
 // ║  - Visualización tipo post-it de los pedidos                                ║
 // ║  - Control de estados: PENDIENTE → PREPARANDO → ENTREGADO                  ║
-// ║  - AHORA comparte sesión con la caja principal                              ║
+// ║  - NUEVO: Ficha y nombre del cliente                                        ║
+// ║  - NUEVO: Animaciones suaves sin parpadeo                                   ║
+// ║  - NUEVO: Sonido de alarma fuerte                                           ║
 // ╚════════════════════════════════════════════════════════════════════════════╝
 
 
@@ -22,9 +24,6 @@ const SHEETS = CONFIG.SHEETS;
 
 const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SCOPES - CORREGIDO: Ahora incluye userinfo para obtener email
-// ═══════════════════════════════════════════════════════════════════════════════
 const SCOPES =
     'https://www.googleapis.com/auth/spreadsheets ' +
     'https://www.googleapis.com/auth/userinfo.profile ' +
@@ -36,21 +35,18 @@ let gapiInited = false;
 let gisInited = false;
 let isConnected = false;
 let currentOrders = [];
-let previousOrderCount = 0;
+let previousOrderIds = new Set();
 let refreshInterval = null;
 
-// Variables de usuario - NUEVO
+// Variables de usuario
 let emailUsuario = '';
 let usuarioAutorizado = false;
 let nombreUsuario = '';
 
-// Colores para los post-its (se asignan cíclicamente)
+// Colores para los post-its
 const POSTIT_COLORS = ['color-0', 'color-1', 'color-2', 'color-3', 'color-4', 'color-5'];
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// CLAVE DE SESIÓN COMPARTIDA - CORREGIDO
-// ═══════════════════════════════════════════════════════════════════════════════
-// Usar la MISMA clave que el sistema principal para compartir sesión
+// Clave de sesión compartida
 const TOKEN_STORAGE_KEY = 'pos_google_token';
 
 
@@ -91,8 +87,6 @@ function gisLoaded() {
 function checkReady() {
     if (gapiInited && gisInited) {
         console.log('🍳 Pantalla de Cocina lista');
-        
-        // Intentar restaurar sesión usando la MISMA clave que el POS principal
         const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
         if (savedToken) {
             gapi.client.setToken({ access_token: savedToken });
@@ -127,10 +121,7 @@ function handleTokenResponse(resp) {
     }
     
     gapi.client.setToken(resp);
-    // Guardar con la MISMA clave que el sistema principal
     localStorage.setItem(TOKEN_STORAGE_KEY, resp.access_token);
-    
-    // Validar usuario antes de conectar
     validarYCargarDatos();
 }
 
@@ -145,16 +136,15 @@ function logoutGoogle() {
     
     isConnected = false;
     currentOrders = [];
-    previousOrderCount = 0;
+    previousOrderIds = new Set();
     emailUsuario = '';
     usuarioAutorizado = false;
     nombreUsuario = '';
     
     stopAutoRefresh();
     updateConnectionStatus(false);
-    hideAccessDenied();
     showEmptyState();
-    renderOrders([]);
+    clearOrdersGrid();
     
     showToast('Desconectado', 'warning');
 }
@@ -162,7 +152,6 @@ function logoutGoogle() {
 async function verificarToken() {
     try {
         await gapi.client.sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
-        // Token válido - ahora validar usuario
         validarYCargarDatos();
         console.log('✅ Token válido');
     } catch (e) {
@@ -173,17 +162,13 @@ async function verificarToken() {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// VALIDACIÓN DE USUARIOS AUTORIZADOS - NUEVO
+// VALIDACIÓN DE USUARIOS AUTORIZADOS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Función principal que valida el usuario y carga los datos si está autorizado
- */
 async function validarYCargarDatos() {
     try {
         showLoading('Verificando acceso...');
         
-        // Primero obtener el email del usuario
         const email = await obtenerEmailUsuario();
         
         if (!email) {
@@ -192,27 +177,21 @@ async function validarYCargarDatos() {
             return;
         }
         
-        // Verificar si el usuario está autorizado
         const autorizado = await verificarUsuarioAutorizado(email);
         
         if (!autorizado) {
             hideLoading();
-            showAccessDenied(`La cuenta ${email} no está autorizada para usar este sistema`);
+            showAccessDenied(`La cuenta ${email} no está autorizada`);
             return;
         }
         
-        // Usuario autorizado - conectar y cargar pedidos
-        hideAccessDenied();
         isConnected = true;
         updateConnectionStatus(true);
         hideEmptyState();
         
         showToast(`¡Bienvenido ${nombreUsuario || email}!`, 'success');
         
-        // Cargar pedidos inmediatamente
-        refreshOrders();
-        
-        // Iniciar actualización automática cada 5 segundos
+        await refreshOrders(true);
         startAutoRefresh();
         
         hideLoading();
@@ -224,9 +203,6 @@ async function validarYCargarDatos() {
     }
 }
 
-/**
- * Obtiene el email del usuario conectado desde la API de Google
- */
 async function obtenerEmailUsuario() {
     try {
         const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -241,9 +217,6 @@ async function obtenerEmailUsuario() {
     }
 }
 
-/**
- * Verifica si el email está en la hoja de usuarios autorizados
- */
 async function verificarUsuarioAutorizado(email) {
     try {
         const response = await gapi.client.sheets.spreadsheets.values.get({
@@ -253,50 +226,37 @@ async function verificarUsuarioAutorizado(email) {
         
         const rows = response.result.values || [];
         
-        // Si la hoja está vacía, permitir acceso (primera configuración)
         if (rows.length === 0) {
-            console.log('⚠️ Hoja de usuarios vacía - permitiendo acceso');
             usuarioAutorizado = true;
             nombreUsuario = email.split('@')[0];
             return true;
         }
         
-        // Buscar el email en la lista
         const emailLower = email.toLowerCase().trim();
         
         for (const row of rows) {
             const emailFila = (row[0] || '').toLowerCase().trim();
             const nombre = row[1] || '';
-            const rol = row[2] || '';
             const activo = (row[3] || 'TRUE').toString().toUpperCase();
             
             if (emailFila === emailLower) {
-                // Verificar si está activo
                 if (activo === 'TRUE' || activo === 'SI' || activo === '1') {
                     usuarioAutorizado = true;
                     nombreUsuario = nombre || email.split('@')[0];
-                    console.log(`✅ Usuario autorizado: ${nombreUsuario} (${rol})`);
                     return true;
-                } else {
-                    console.log('❌ Usuario desactivado');
-                    return false;
                 }
+                return false;
             }
         }
         
-        console.log('❌ Email no encontrado en la lista de autorizados');
         return false;
         
     } catch (e) {
         console.error('Error verificando usuario:', e);
-        // En caso de error, denegar acceso por seguridad
         return false;
     }
 }
 
-/**
- * Muestra el mensaje de acceso denegado
- */
 function showAccessDenied(mensaje) {
     const grid = document.getElementById('ordersGrid');
     if (grid) {
@@ -305,24 +265,12 @@ function showAccessDenied(mensaje) {
                 <div class="no-icon">🚫</div>
                 <h3>Acceso Denegado</h3>
                 <p>${mensaje}</p>
-                <p style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.7;">
-                    Contacta al administrador para solicitar acceso
-                </p>
             </div>
         `;
     }
-    
-    // Desconectar
     isConnected = false;
     updateConnectionStatus(false);
     stopAutoRefresh();
-}
-
-/**
- * Oculta el mensaje de acceso denegado
- */
-function hideAccessDenied() {
-    // Se limpiará cuando se rendericen los pedidos
 }
 
 
@@ -330,16 +278,13 @@ function hideAccessDenied() {
 // GESTIÓN DE PEDIDOS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Obtiene los pedidos pendientes de la cocina
- */
 async function getKitchenOrders() {
     if (!isConnected) return [];
     
     try {
         const response = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: SHEETS.PEDIDOS_COCINA + '!A2:G500'
+            range: SHEETS.PEDIDOS_COCINA + '!A2:I500'
         });
         
         const rows = response.result.values || [];
@@ -348,7 +293,6 @@ async function getKitchenOrders() {
         rows.forEach((row, index) => {
             const estado = (row[4] || 'PENDIENTE').toString().trim().toUpperCase();
             
-            // Solo mostrar pedidos que NO estén entregados
             if (estado !== 'ENTREGADO') {
                 let items = [];
                 try {
@@ -365,12 +309,13 @@ async function getKitchenOrders() {
                     items: items,
                     status: estado,
                     timestamp: row[5] || '',
-                    user: row[6] || ''
+                    user: row[6] || '',
+                    ficha: row[7] || '',
+                    cliente: row[8] || ''
                 });
             }
         });
         
-        // Ordenar por timestamp (más antiguos primero = FIFO)
         orders.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         
         return orders;
@@ -381,9 +326,6 @@ async function getKitchenOrders() {
     }
 }
 
-/**
- * Actualiza el estado de un pedido
- */
 async function updateOrderStatus(orderNumber, newStatus, rowIndex) {
     if (!isConnected) return false;
     
@@ -394,29 +336,23 @@ async function updateOrderStatus(orderNumber, newStatus, rowIndex) {
             spreadsheetId: SPREADSHEET_ID,
             range: SHEETS.PEDIDOS_COCINA + '!E' + rowIndex,
             valueInputOption: 'RAW',
-            resource: {
-                values: [[newStatus]]
-            }
+            resource: { values: [[newStatus]] }
         });
         
         hideLoading();
-        console.log(`🍳 Pedido #${orderNumber} → ${newStatus}`);
         
-        // Si es entregado, animar salida antes de refrescar
         if (newStatus === 'ENTREGADO') {
             const card = document.querySelector(`[data-order="${orderNumber}"]`);
             if (card) {
                 card.classList.add('delivered');
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 600));
             }
             showToast(`Pedido #${orderNumber.toString().padStart(4, '0')} entregado ✅`, 'success');
         } else if (newStatus === 'PREPARANDO') {
-            showToast(`Preparando pedido #${orderNumber.toString().padStart(4, '0')} 🔥`, 'warning');
+            showToast(`Preparando #${orderNumber.toString().padStart(4, '0')} 🔥`, 'warning');
         }
         
-        // Refrescar lista de pedidos
         await refreshOrders();
-        
         return true;
         
     } catch (error) {
@@ -427,10 +363,7 @@ async function updateOrderStatus(orderNumber, newStatus, rowIndex) {
     }
 }
 
-/**
- * Refresca la lista de pedidos
- */
-async function refreshOrders() {
+async function refreshOrders(isFirstLoad = false) {
     if (!isConnected) {
         showEmptyState();
         return;
@@ -439,20 +372,19 @@ async function refreshOrders() {
     try {
         const orders = await getKitchenOrders();
         
-        // Detectar nuevos pedidos para notificación
-        if (orders.length > previousOrderCount && previousOrderCount > 0) {
-            playNotificationSound();
-            showToast('🔔 ¡Nuevo pedido!', 'warning');
+        const currentIds = new Set(orders.map(o => o.orderNumber));
+        const newOrders = orders.filter(o => !previousOrderIds.has(o.orderNumber));
+        
+        if (newOrders.length > 0 && !isFirstLoad && previousOrderIds.size > 0) {
+            playAlarmSound();
+            showToast(`🔔 ¡${newOrders.length} nuevo${newOrders.length > 1 ? 's' : ''} pedido${newOrders.length > 1 ? 's' : ''}!`, 'warning');
         }
         
-        previousOrderCount = orders.length;
+        previousOrderIds = currentIds;
         currentOrders = orders;
         
-        // Actualizar contador
         updatePendingCount(orders.length);
-        
-        // Renderizar pedidos
-        renderOrders(orders);
+        renderOrdersSmooth(orders, newOrders.map(o => o.orderNumber));
         
     } catch (error) {
         console.error('Error refrescando pedidos:', error);
@@ -461,13 +393,10 @@ async function refreshOrders() {
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// RENDERIZADO DE PEDIDOS
+// RENDERIZADO SUAVE (SIN PARPADEO)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Renderiza los pedidos como post-its
- */
-function renderOrders(orders) {
+function renderOrdersSmooth(orders, newOrderNumbers = []) {
     const grid = document.getElementById('ordersGrid');
     if (!grid) return;
     
@@ -476,62 +405,144 @@ function renderOrders(orders) {
             <div class="no-orders">
                 <div class="no-icon">✨</div>
                 <h3>¡Todo al día!</h3>
-                <p>No hay pedidos pendientes en este momento</p>
+                <p>No hay pedidos pendientes</p>
             </div>
         `;
         return;
     }
     
-    let html = '';
-    
-    orders.forEach((order, index) => {
-        const colorClass = POSTIT_COLORS[index % POSTIT_COLORS.length];
-        const statusClass = order.status === 'PREPARANDO' ? 'preparing' : '';
-        const elapsedTime = getElapsedTime(order.timestamp);
-        const isUrgent = elapsedTime.minutes >= 10;
-        
-        html += `
-            <div class="order-postit ${colorClass} ${statusClass}" data-order="${order.orderNumber}">
-                <div class="postit-header">
-                    <div class="order-number">#${order.orderNumber.toString().padStart(4, '0')}</div>
-                    <div class="order-time">
-                        <span class="time">${order.time}</span>
-                        <span class="elapsed ${isUrgent ? 'urgent' : ''}">${elapsedTime.text}</span>
-                    </div>
-                </div>
-                
-                <div class="postit-items">
-                    ${order.items.map(item => `
-                        <div class="order-item">
-                            <span class="item-quantity">${item.cantidad}</span>
-                            <div class="item-details">
-                                <div class="item-name">${item.nombre}</div>
-                                ${item.acompañamiento ? `<div class="item-side">${item.acompañamiento}</div>` : ''}
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-                
-                <div class="postit-actions">
-                    ${order.status === 'PENDIENTE' ? `
-                        <button class="btn-status btn-preparing" onclick="updateOrderStatus(${order.orderNumber}, 'PREPARANDO', ${order.rowIndex})">
-                            🔥 Preparando
-                        </button>
-                    ` : ''}
-                    <button class="btn-status btn-delivered" onclick="updateOrderStatus(${order.orderNumber}, 'ENTREGADO', ${order.rowIndex})">
-                        ✅ Entregado
-                    </button>
-                </div>
-            </div>
-        `;
+    const existingCards = new Map();
+    grid.querySelectorAll('.order-postit').forEach(card => {
+        existingCards.set(parseInt(card.dataset.order), card);
     });
     
-    grid.innerHTML = html;
+    const currentOrderNumbers = new Set(orders.map(o => o.orderNumber));
+    
+    // Remover pedidos que ya no existen
+    existingCards.forEach((card, orderNum) => {
+        if (!currentOrderNumbers.has(orderNum)) {
+            card.classList.add('removing');
+            setTimeout(() => card.remove(), 500);
+        }
+    });
+    
+    // Actualizar o crear pedidos
+    orders.forEach((order) => {
+        const colorClass = POSTIT_COLORS[order.orderNumber % POSTIT_COLORS.length];
+        const existingCard = existingCards.get(order.orderNumber);
+        
+        if (existingCard) {
+            updateExistingCard(existingCard, order, colorClass);
+        } else {
+            const newCard = createOrderCard(order, colorClass, newOrderNumbers.includes(order.orderNumber));
+            grid.appendChild(newCard);
+        }
+    });
 }
 
-/**
- * Calcula el tiempo transcurrido desde que se hizo el pedido
- */
+function createOrderCard(order, colorClass, isNew = false) {
+    const card = document.createElement('div');
+    card.className = `order-postit ${colorClass} ${order.status === 'PREPARANDO' ? 'preparing' : ''} ${isNew ? 'new-order' : ''}`;
+    card.dataset.order = order.orderNumber;
+    
+    const elapsedTime = getElapsedTime(order.timestamp);
+    const isUrgent = elapsedTime.minutes >= 10;
+    
+    const fichaDisplay = order.ficha ? `
+        <div class="ficha-badge">
+            <span class="ficha-icon">🔔</span>
+            <span class="ficha-number">${order.ficha}</span>
+        </div>
+    ` : '';
+    
+    const clienteDisplay = order.cliente ? `
+        <div class="cliente-name">
+            <span class="cliente-icon">👤</span>
+            <span class="cliente-text">${order.cliente}</span>
+        </div>
+    ` : '';
+    
+    card.innerHTML = `
+        ${fichaDisplay}
+        <div class="postit-header">
+            <div class="order-number">#${order.orderNumber.toString().padStart(4, '0')}</div>
+            <div class="order-time">
+                <span class="time">${order.time}</span>
+                <span class="elapsed ${isUrgent ? 'urgent' : ''}">${elapsedTime.text}</span>
+            </div>
+        </div>
+        ${clienteDisplay}
+        <div class="postit-items">
+            ${order.items.map(item => `
+                <div class="order-item">
+                    <span class="item-quantity">${item.cantidad}</span>
+                    <div class="item-details">
+                        <div class="item-name">${item.nombre}</div>
+                        ${item.acompañamiento ? `<div class="item-side">${item.acompañamiento}</div>` : ''}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        <div class="postit-actions">
+            ${order.status === 'PENDIENTE' ? `
+                <button class="btn-status btn-preparing" onclick="updateOrderStatus(${order.orderNumber}, 'PREPARANDO', ${order.rowIndex})">
+                    🔥 Preparando
+                </button>
+            ` : ''}
+            <button class="btn-status btn-delivered" onclick="updateOrderStatus(${order.orderNumber}, 'ENTREGADO', ${order.rowIndex})">
+                ✅ Entregado
+            </button>
+        </div>
+    `;
+    
+    return card;
+}
+
+function updateExistingCard(card, order, colorClass) {
+    // Solo actualizar clases, no recrear
+    const wasPrepaing = card.classList.contains('preparing');
+    const isNowPreparing = order.status === 'PREPARANDO';
+    
+    if (wasPrepaing !== isNowPreparing) {
+        card.classList.toggle('preparing', isNowPreparing);
+    }
+    
+    // Actualizar tiempo
+    const elapsedTime = getElapsedTime(order.timestamp);
+    const elapsedEl = card.querySelector('.elapsed');
+    if (elapsedEl) {
+        elapsedEl.textContent = elapsedTime.text;
+        elapsedEl.classList.toggle('urgent', elapsedTime.minutes >= 10);
+    }
+    
+    // Actualizar botones si cambió el estado
+    const actionsEl = card.querySelector('.postit-actions');
+    if (actionsEl) {
+        const hasPreparingBtn = actionsEl.querySelector('.btn-preparing');
+        if (order.status === 'PENDIENTE' && !hasPreparingBtn) {
+            actionsEl.innerHTML = `
+                <button class="btn-status btn-preparing" onclick="updateOrderStatus(${order.orderNumber}, 'PREPARANDO', ${order.rowIndex})">
+                    🔥 Preparando
+                </button>
+                <button class="btn-status btn-delivered" onclick="updateOrderStatus(${order.orderNumber}, 'ENTREGADO', ${order.rowIndex})">
+                    ✅ Entregado
+                </button>
+            `;
+        } else if (order.status === 'PREPARANDO' && hasPreparingBtn) {
+            actionsEl.innerHTML = `
+                <button class="btn-status btn-delivered" onclick="updateOrderStatus(${order.orderNumber}, 'ENTREGADO', ${order.rowIndex})">
+                    ✅ Entregado
+                </button>
+            `;
+        }
+    }
+}
+
+function clearOrdersGrid() {
+    const grid = document.getElementById('ordersGrid');
+    if (grid) grid.innerHTML = '';
+}
+
 function getElapsedTime(timestamp) {
     if (!timestamp) return { minutes: 0, text: '' };
     
@@ -540,15 +551,12 @@ function getElapsedTime(timestamp) {
     const diffMs = now - orderTime;
     const diffMins = Math.floor(diffMs / 60000);
     
-    if (diffMins < 1) {
-        return { minutes: 0, text: 'Ahora' };
-    } else if (diffMins < 60) {
-        return { minutes: diffMins, text: `Hace ${diffMins} min` };
-    } else {
-        const hours = Math.floor(diffMins / 60);
-        const mins = diffMins % 60;
-        return { minutes: diffMins, text: `Hace ${hours}h ${mins}m` };
-    }
+    if (diffMins < 1) return { minutes: 0, text: 'Ahora' };
+    if (diffMins < 60) return { minutes: diffMins, text: `Hace ${diffMins} min` };
+    
+    const hours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+    return { minutes: diffMins, text: `Hace ${hours}h ${mins}m` };
 }
 
 
@@ -558,7 +566,7 @@ function getElapsedTime(timestamp) {
 
 function startAutoRefresh() {
     stopAutoRefresh();
-    refreshInterval = setInterval(refreshOrders, 5000); // Cada 5 segundos
+    refreshInterval = setInterval(() => refreshOrders(), 5000);
     console.log('🔄 Auto-refresh activado (5s)');
 }
 
@@ -566,6 +574,20 @@ function stopAutoRefresh() {
     if (refreshInterval) {
         clearInterval(refreshInterval);
         refreshInterval = null;
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SONIDO DE ALARMA FUERTE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function playAlarmSound() {
+    const audio = document.getElementById('alarmSound');
+    if (audio) {
+        audio.currentTime = 0;
+        audio.volume = 1.0;
+        audio.play().catch(e => console.log('Audio blocked:', e));
     }
 }
 
@@ -610,21 +632,14 @@ function showToast(message, type = 'success') {
     
     if (!toast) return;
     
-    const icons = {
-        success: '✅',
-        error: '❌',
-        warning: '⚠️'
-    };
+    const icons = { success: '✅', error: '❌', warning: '⚠️' };
     
     toast.className = 'toast ' + type;
     if (icon) icon.textContent = icons[type] || '✅';
     if (msg) msg.textContent = message;
     
     toast.classList.add('show');
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
+    setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
 function showLoading(text = 'Cargando...') {
@@ -637,14 +652,6 @@ function showLoading(text = 'Cargando...') {
 function hideLoading() {
     const overlay = document.getElementById('loadingOverlay');
     if (overlay) overlay.classList.remove('show');
-}
-
-function playNotificationSound() {
-    const audio = document.getElementById('notificationSound');
-    if (audio) {
-        audio.currentTime = 0;
-        audio.play().catch(e => console.log('Audio blocked:', e));
-    }
 }
 
 function updateDateTime() {
@@ -667,17 +674,27 @@ function updateDateTime() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🍳 Iniciando Pantalla de Cocina...');
+    console.log('🍳 Iniciando Pantalla de Cocina v2.5...');
     
     updateDateTime();
     setInterval(updateDateTime, 1000);
     
-    // También refrescar tiempos transcurridos cada minuto
+    // Actualizar tiempos cada 30 segundos sin recrear
     setInterval(() => {
         if (currentOrders.length > 0) {
-            renderOrders(currentOrders);
+            currentOrders.forEach(order => {
+                const card = document.querySelector(`[data-order="${order.orderNumber}"]`);
+                if (card) {
+                    const elapsedEl = card.querySelector('.elapsed');
+                    if (elapsedEl) {
+                        const elapsedTime = getElapsedTime(order.timestamp);
+                        elapsedEl.textContent = elapsedTime.text;
+                        elapsedEl.classList.toggle('urgent', elapsedTime.minutes >= 10);
+                    }
+                }
+            });
         }
-    }, 60000);
+    }, 30000);
     
     console.log('✅ Pantalla de Cocina lista');
 });
