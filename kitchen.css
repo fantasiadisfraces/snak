@@ -624,46 +624,132 @@ body {
 
 @media (max-width: 768px) {
     .kitchen-header {
-        padding: 1rem;
+        padding: 0.5rem 0.75rem;
     }
     
     .header-content {
-        flex-direction: column;
-        gap: 1rem;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 0.5rem;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .brand {
+        gap: 0.5rem;
+        flex-shrink: 0;
     }
     
     .brand-text h1 {
-        font-size: 2rem;
+        font-size: 1.3rem;
+        letter-spacing: 2px;
+    }
+    
+    .tagline {
+        display: none;
     }
     
     .kitchen-logo {
-        width: 55px;
-        height: 55px;
-        font-size: 2.2rem;
+        width: 40px;
+        height: 40px;
+        font-size: 1.5rem;
+        border-radius: 8px;
     }
     
     .header-info {
-        width: 100%;
-        justify-content: space-between;
+        flex: 1;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+    
+    .datetime {
+        display: none;
+    }
+    
+    .pending-count {
+        padding: 0.3rem 0.75rem;
+        border-radius: 8px;
+        flex-direction: row;
+        gap: 0.4rem;
+    }
+    
+    .count-number {
+        font-size: 1.4rem;
+    }
+    
+    .count-label {
+        font-size: 0.6rem;
+        display: none;
     }
     
     .header-actions {
-        width: 100%;
-        justify-content: center;
-        flex-wrap: wrap;
+        gap: 0.4rem;
+        flex-shrink: 0;
+    }
+    
+    .connection-status {
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+    }
+    
+    .status-text {
+        display: none;
+    }
+    
+    .status-dot {
+        width: 10px;
+        height: 10px;
+    }
+    
+    .btn-connect, .btn-refresh {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.75rem;
+        border-radius: 6px;
+    }
+    
+    .btn-connect svg {
+        width: 14px;
+        height: 14px;
+    }
+    
+    .btn-connect span,
+    .btn-refresh {
+        font-size: 0;
+    }
+    
+    .btn-refresh::before {
+        content: "🔄";
+        font-size: 1rem;
     }
     
     .kitchen-main {
-        padding: 1rem;
+        padding: 0.5rem;
     }
     
     .orders-grid {
         grid-template-columns: 1fr;
-        gap: 1rem;
+        gap: 1.25rem;
+        padding-top: 0.5rem;
     }
     
     .order-number {
-        font-size: 2rem;
+        font-size: 1.8rem;
+    }
+    
+    .empty-state {
+        padding: 2rem 1rem;
+    }
+    
+    .empty-icon {
+        font-size: 3rem;
+    }
+    
+    .empty-state h2 {
+        font-size: 1.3rem;
+    }
+    
+    .empty-state p {
+        font-size: 0.9rem;
     }
 }
 
@@ -905,127 +991,224 @@ body {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   RESPONSIVE MEJORADO
+   ESTILOS ADICIONALES INTEGRADOS EN LOS MEDIA QUERIES PRINCIPALES
    ═══════════════════════════════════════════════════════════════════════════════ */
-
-@media (max-width: 768px) {
-    .ficha-badge {
-        padding: 0.4rem 1rem;
-    }
-    
-    .ficha-number {
-        font-size: 1.5rem;
-    }
-    
-    .cliente-text {
-        font-size: 1rem;
-    }
-    
-    .order-postit {
-        margin-top: 25px;
-    }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════════
-   FIX TOAST PARA MÓVILES EN COCINA
-   ═══════════════════════════════════════════════════════════════════════════════ */
-
-@media (max-width: 768px) {
-    .toast {
-        bottom: 20px !important;
-        left: 50% !important;
-        transform: translateX(-50%) translateY(100px) !important;
-        width: 90% !important;
-        max-width: 320px !important;
-        padding: 0.875rem 1.25rem !important;
-        font-size: 0.95rem !important;
-        border-radius: 12px !important;
-    }
-    
-    .toast.show {
-        transform: translateX(-50%) translateY(0) !important;
-    }
-    
-    .toast-icon {
-        font-size: 1.2rem !important;
-    }
-}
 
 @media (max-width: 480px) {
+    /* ===== HEADER ULTRA COMPACTO ===== */
     .kitchen-header {
-        padding: 0.75rem !important;
+        padding: 0.4rem 0.5rem !important;
+        border-bottom-width: 2px !important;
+    }
+    
+    .header-content {
+        gap: 0.3rem !important;
     }
     
     .brand {
-        gap: 0.5rem !important;
+        gap: 0.35rem !important;
     }
     
     .kitchen-logo {
-        width: 45px !important;
-        height: 45px !important;
-        font-size: 1.8rem !important;
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 1.2rem !important;
+        border-radius: 6px !important;
     }
     
     .brand-text h1 {
-        font-size: 1.5rem !important;
+        font-size: 1.1rem !important;
+        letter-spacing: 1px !important;
     }
     
     .tagline {
-        font-size: 0.7rem !important;
+        display: none !important;
     }
     
     .pending-count {
-        padding: 0.5rem 1rem !important;
+        padding: 0.25rem 0.5rem !important;
+        border-radius: 6px !important;
     }
     
     .count-number {
-        font-size: 1.8rem !important;
+        font-size: 1.2rem !important;
     }
     
     .count-label {
-        font-size: 0.65rem !important;
+        display: none !important;
     }
     
-    .datetime {
-        font-size: 0.8rem !important;
-        display: none;
-    }
-    
-    .btn-connect,
-    .btn-refresh {
-        padding: 0.5rem 0.75rem !important;
-        font-size: 0.8rem !important;
+    .header-actions {
+        gap: 0.25rem !important;
     }
     
     .connection-status {
-        padding: 0.35rem 0.5rem !important;
-        font-size: 0.75rem !important;
+        padding: 0.2rem 0.35rem !important;
+        border-radius: 4px !important;
+    }
+    
+    .status-dot {
+        width: 8px !important;
+        height: 8px !important;
+    }
+    
+    .status-text {
+        display: none !important;
+    }
+    
+    .btn-connect {
+        padding: 0.3rem 0.5rem !important;
+        border-radius: 4px !important;
+    }
+    
+    .btn-connect svg {
+        width: 12px !important;
+        height: 12px !important;
+    }
+    
+    #btnGoogleText {
+        display: none !important;
+    }
+    
+    .btn-refresh {
+        padding: 0.3rem !important;
+        min-width: 32px !important;
+        font-size: 0 !important;
+    }
+    
+    .btn-refresh::before {
+        font-size: 0.9rem !important;
+    }
+    
+    /* ===== ÁREA DE PEDIDOS ===== */
+    .kitchen-main {
+        padding: 0.4rem !important;
     }
     
     .orders-grid {
         grid-template-columns: 1fr !important;
-        gap: 1.5rem !important;
-        padding: 0.5rem !important;
+        gap: 1rem !important;
+        padding: 0.25rem !important;
     }
     
     .order-postit {
-        margin-top: 25px !important;
+        margin-top: 20px !important;
+        padding: 0.75rem !important;
+        border-radius: 10px !important;
     }
     
     .ficha-badge {
-        padding: 0.35rem 1rem !important;
+        padding: 0.25rem 0.75rem !important;
+        top: -12px !important;
+        border-radius: 12px !important;
+    }
+    
+    .ficha-icon {
+        font-size: 0.8rem !important;
     }
     
     .ficha-number {
-        font-size: 1.6rem !important;
+        font-size: 1.3rem !important;
+    }
+    
+    .cliente-name {
+        padding: 0.35rem 0.5rem !important;
+        font-size: 0.8rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .order-header {
+        margin-bottom: 0.5rem !important;
+        padding-bottom: 0.4rem !important;
     }
     
     .order-number {
-        font-size: 1.8rem !important;
+        font-size: 1.5rem !important;
+    }
+    
+    .order-time {
+        font-size: 0.75rem !important;
+        padding: 0.2rem 0.5rem !important;
+    }
+    
+    .items-list {
+        gap: 0.35rem !important;
+    }
+    
+    .item-row {
+        padding: 0.35rem 0.5rem !important;
+        font-size: 0.85rem !important;
+    }
+    
+    .item-qty {
+        min-width: 24px !important;
+        height: 24px !important;
+        font-size: 0.75rem !important;
+    }
+    
+    .item-details {
+        font-size: 0.8rem !important;
+    }
+    
+    .order-footer {
+        margin-top: 0.5rem !important;
+        padding-top: 0.5rem !important;
+        gap: 0.35rem !important;
     }
     
     .btn-status {
-        padding: 0.75rem !important;
+        padding: 0.5rem 0.75rem !important;
+        font-size: 0.75rem !important;
+        border-radius: 6px !important;
+    }
+    
+    /* ===== TOAST ===== */
+    .toast {
+        bottom: 15px !important;
         font-size: 0.85rem !important;
+        padding: 0.6rem 1rem !important;
+    }
+    
+    /* ===== EMPTY STATE ===== */
+    .empty-state {
+        padding: 1.5rem 1rem !important;
+    }
+    
+    .empty-icon {
+        font-size: 2.5rem !important;
+    }
+    
+    .empty-state h2 {
+        font-size: 1.1rem !important;
+    }
+    
+    .empty-state p {
+        font-size: 0.8rem !important;
+    }
+}
+
+/* ===== MÓVILES MUY PEQUEÑOS (320px) ===== */
+@media (max-width: 360px) {
+    .kitchen-logo {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 1rem !important;
+    }
+    
+    .brand-text h1 {
+        font-size: 0.95rem !important;
+    }
+    
+    .count-number {
+        font-size: 1rem !important;
+    }
+    
+    .order-number {
+        font-size: 1.3rem !important;
+    }
+    
+    .btn-status {
+        padding: 0.4rem 0.5rem !important;
+        font-size: 0.7rem !important;
     }
 }
