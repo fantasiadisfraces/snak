@@ -2592,28 +2592,36 @@ body {
     .customer-info-section {
         display: flex !important;
         flex-direction: row !important;
-        gap: 0.4rem !important;
+        gap: 0.5rem !important;
         padding: 0.5rem !important;
-        margin: 0 0.5rem 0.4rem !important;
+        margin: 0.5rem !important;
         border-width: 1px !important;
+        box-sizing: border-box !important;
+        width: auto !important;
+        display: grid !important;
+        grid-template-columns: 80px 1fr !important;
+        align-items: start !important;
     }
     
     .customer-field {
         gap: 0.15rem !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
     }
     
     .customer-field:first-child {
-        flex: 0 0 70px !important;
-        max-width: 70px !important;
+        width: 100% !important;
     }
     
     .customer-field:last-child {
-        flex: 1 !important;
+        width: 100% !important;
+        min-width: 0 !important;
     }
     
     .customer-field label {
-        font-size: 0.6rem !important;
+        font-size: 0.65rem !important;
         white-space: nowrap;
+        text-align: center;
     }
     
     .customer-input {
@@ -2621,13 +2629,15 @@ body {
         font-size: 0.85rem !important;
         border-radius: 6px !important;
         border-width: 1px !important;
-        height: 30px !important;
+        height: 38px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
     }
     
     .customer-input.ficha-input {
         font-size: 1.1rem !important;
         padding: 0.3rem !important;
-        height: 36px !important;
+        height: 38px !important;
     }
     
     /* Total a cobrar */
@@ -2720,23 +2730,18 @@ body {
 /* Pantallas muy pequeñas */
 @media (max-width: 360px) {
     .customer-info-section {
-        flex-direction: row !important;
-        gap: 0.3rem !important;
-    }
-    
-    .customer-field:first-child {
-        flex: 0 0 60px !important;
-        max-width: 60px !important;
+        grid-template-columns: 70px 1fr !important;
+        gap: 0.4rem !important;
     }
     
     .customer-input {
-        height: 28px !important;
+        height: 34px !important;
         font-size: 0.8rem !important;
     }
     
     .customer-input.ficha-input {
         font-size: 1rem !important;
-        height: 32px !important;
+        height: 34px !important;
     }
     
     .quick-amounts {
