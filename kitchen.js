@@ -754,6 +754,7 @@ function toggleSummaryPanel() {
 
 /**
  * Actualiza el panel de resumen con el total de items a preparar
+ * SOLO muestra items de pedidos en estado "PREPARANDO"
  * @param {Array} orders - Lista de pedidos activos
  */
 function updateSummaryPanel(orders) {
@@ -762,18 +763,21 @@ function updateSummaryPanel(orders) {
     
     if (!panel || !itemsContainer) return;
     
-    // Si no hay pedidos, ocultar panel
-    if (!orders || orders.length === 0) {
+    // Filtrar SOLO pedidos en estado PREPARANDO
+    const preparingOrders = orders ? orders.filter(o => o.status === 'PREPARANDO') : [];
+    
+    // Si no hay pedidos preparándose, ocultar panel
+    if (preparingOrders.length === 0) {
         panel.style.display = 'none';
         return;
     }
     
     panel.style.display = 'block';
     
-    // Sumar todos los items de todos los pedidos
+    // Sumar todos los items de pedidos EN PREPARACIÓN
     const itemsSummary = {};
     
-    orders.forEach(order => {
+    preparingOrders.forEach(order => {
         if (order.items && Array.isArray(order.items)) {
             order.items.forEach(item => {
                 const key = item.nombre + (item.acompañamiento ? ` (${item.acompañamiento})` : '');
