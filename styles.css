@@ -2122,6 +2122,88 @@ body {
     font-family: 'Poppins', sans-serif;
 }
 
+/* ==================== SELECTOR TIPO DE ORDEN (LOCAL/LLEVAR) ==================== */
+.order-type-section {
+    padding: 0.75rem 1rem;
+    text-align: center;
+}
+
+.order-type-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.order-type-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.order-type-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    border: 3px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-secondary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: inherit;
+}
+
+.order-type-btn .type-icon {
+    font-size: 1.5rem;
+}
+
+.order-type-btn .type-text {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* LOCAL - Colores cálidos */
+.order-type-btn.local {
+    border-color: #FFB74D;
+    background: rgba(255, 183, 77, 0.1);
+}
+
+.order-type-btn.local:hover {
+    background: rgba(255, 183, 77, 0.2);
+}
+
+.order-type-btn.local.active {
+    background: linear-gradient(135deg, #FF9800, #F57C00);
+    border-color: #E65100;
+    color: white;
+    box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4);
+    transform: scale(1.02);
+}
+
+/* LLEVAR - Colores fríos */
+.order-type-btn.llevar {
+    border-color: #4FC3F7;
+    background: rgba(79, 195, 247, 0.1);
+}
+
+.order-type-btn.llevar:hover {
+    background: rgba(79, 195, 247, 0.2);
+}
+
+.order-type-btn.llevar.active {
+    background: linear-gradient(135deg, #29B6F6, #0288D1);
+    border-color: #01579B;
+    color: white;
+    box-shadow: 0 4px 15px rgba(3, 169, 244, 0.4);
+    transform: scale(1.02);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════════
    MÓVIL PEQUEÑO (menos de 480px)
    ═══════════════════════════════════════════════════════════════════════════════ */
@@ -2732,6 +2814,35 @@ body {
         font-size: 1.1rem !important;
         padding: 0.3rem !important;
         height: 38px !important;
+    }
+    
+    /* Selector tipo LOCAL/LLEVAR - COMPACTO */
+    .order-type-section {
+        padding: 0.5rem !important;
+        margin: 0 0.5rem !important;
+    }
+    
+    .order-type-label {
+        font-size: 0.7rem !important;
+        margin-bottom: 0.35rem !important;
+    }
+    
+    .order-type-buttons {
+        gap: 0.5rem !important;
+    }
+    
+    .order-type-btn {
+        padding: 0.5rem !important;
+        border-radius: 8px !important;
+        border-width: 2px !important;
+    }
+    
+    .order-type-btn .type-icon {
+        font-size: 1.2rem !important;
+    }
+    
+    .order-type-btn .type-text {
+        font-size: 0.65rem !important;
     }
     
     /* Total a cobrar */
