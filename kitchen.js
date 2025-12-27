@@ -333,9 +333,28 @@ async function getKitchenOrders() {
 async function updateOrderStatus(orderNumber, newStatus, rowIndex) {
     if (!isConnected) return false;
     
+    const card = document.querySelector(`[data-order="${orderNumber}"]`);
+    
     try {
-        showLoading('Actualizando...');
+        // Actualización visual INMEDIATA (sin esperar al servidor)
+        if (card) {
+            if (newStatus === 'PREPARANDO') {
+                card.classList.add('preparing');
+                // Actualizar botones inmediatamente
+                const actionsEl = card.querySelector('.postit-actions');
+                if (actionsEl) {
+                    actionsEl.innerHTML = `
+                        <button class="btn-status btn-delivered" onclick="updateOrderStatus(${orderNumber}, 'ENTREGADO', ${rowIndex})">
+                            ✅ Entregado
+                        </button>
+                    `;
+                }
+            } else if (newStatus === 'ENTREGADO') {
+                card.classList.add('delivered');
+            }
+        }
         
+        // Guardar en Google Sheets (en segundo plano)
         await gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
             range: SHEETS.PEDIDOS_COCINA + '!E' + rowIndex,
@@ -343,26 +362,45 @@ async function updateOrderStatus(orderNumber, newStatus, rowIndex) {
             resource: { values: [[newStatus]] }
         });
         
-        hideLoading();
-        
+        // Toast de confirmación
         if (newStatus === 'ENTREGADO') {
-            const card = document.querySelector(`[data-order="${orderNumber}"]`);
-            if (card) {
-                card.classList.add('delivered');
-                await new Promise(resolve => setTimeout(resolve, 600));
-            }
             showToast(`Pedido #${orderNumber.toString().padStart(4, '0')} entregado ✅`, 'success');
+            // Remover la tarjeta después de la animación
+            setTimeout(() => {
+                if (card) card.remove();
+                // Actualizar contador
+                const remaining = document.querySelectorAll('.order-postit:not(.delivered)').length;
+                updatePendingCount(remaining);
+            }, 500);
         } else if (newStatus === 'PREPARANDO') {
             showToast(`Preparando #${orderNumber.toString().padStart(4, '0')} 🔥`, 'warning');
         }
         
-        await refreshOrders();
+        // Actualizar estado local
+        const orderIndex = currentOrders.findIndex(o => o.orderNumber === orderNumber);
+        if (orderIndex !== -1) {
+            currentOrders[orderIndex].status = newStatus;
+            if (newStatus === 'ENTREGADO') {
+                currentOrders.splice(orderIndex, 1);
+            }
+        }
+        
+        // Actualizar panel de resumen (solo si cambió a PREPARANDO)
+        if (newStatus === 'PREPARANDO') {
+            updateSummaryPanel(currentOrders);
+        } else if (newStatus === 'ENTREGADO') {
+            updateSummaryPanel(currentOrders);
+        }
+        
         return true;
         
     } catch (error) {
-        hideLoading();
         console.error('Error actualizando estado:', error);
         showToast('Error al actualizar pedido', 'error');
+        // Revertir cambios visuales si hay error
+        if (card) {
+            card.classList.remove('preparing', 'delivered');
+        }
         return false;
     }
 }
