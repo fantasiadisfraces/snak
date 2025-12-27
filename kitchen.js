@@ -287,7 +287,7 @@ async function getKitchenOrders() {
     try {
         const response = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: SHEETS.PEDIDOS_COCINA + '!A2:I500'
+            range: SHEETS.PEDIDOS_COCINA + '!A2:J500'
         });
         
         const rows = response.result.values || [];
@@ -314,7 +314,8 @@ async function getKitchenOrders() {
                     timestamp: row[5] || '',
                     user: row[6] || '',
                     ficha: row[7] || '',
-                    cliente: row[8] || ''
+                    cliente: row[8] || '',
+                    tipo: (row[9] || 'LOCAL').toString().trim().toUpperCase()
                 });
             }
         });
@@ -379,6 +380,7 @@ async function refreshOrders(isFirstLoad = false) {
         if (!orders || orders.length === 0) {
             currentOrders = [];
             updatePendingCount(0);
+            updateSummaryPanel([]);  // Actualizar panel de resumen
             renderOrdersSmooth([], []);
             return;
         }
@@ -424,6 +426,7 @@ async function refreshOrders(isFirstLoad = false) {
         hasLoadedOnce = true;
         
         updatePendingCount(orders.length);
+        updateSummaryPanel(orders);  // Actualizar panel de resumen
         renderOrdersSmooth(orders, newOrders.map(o => o.orderNumber));
         
     } catch (error) {
@@ -483,8 +486,13 @@ function renderOrdersSmooth(orders, newOrderNumbers = []) {
 
 function createOrderCard(order, colorClass, isNew = false) {
     const card = document.createElement('div');
-    card.className = `order-postit ${colorClass} ${order.status === 'PREPARANDO' ? 'preparing' : ''} ${isNew ? 'new-order' : ''}`;
+    
+    // Determinar color basado en tipo: LOCAL = cálido (naranja), LLEVAR = frío (azul)
+    const tipoClass = order.tipo === 'LLEVAR' ? 'tipo-llevar' : 'tipo-local';
+    
+    card.className = `order-postit ${tipoClass} ${order.status === 'PREPARANDO' ? 'preparing' : ''} ${isNew ? 'new-order' : ''}`;
     card.dataset.order = order.orderNumber;
+    card.dataset.tipo = order.tipo || 'LOCAL';
     
     const elapsedTime = getElapsedTime(order.timestamp);
     const isUrgent = elapsedTime.minutes >= 10;
@@ -503,6 +511,16 @@ function createOrderCard(order, colorClass, isNew = false) {
         </div>
     ` : '';
     
+    // Badge de tipo (LOCAL/LLEVAR)
+    const tipoIcon = order.tipo === 'LLEVAR' ? '🛍️' : '🍽️';
+    const tipoText = order.tipo === 'LLEVAR' ? 'LLEVAR' : 'LOCAL';
+    const tipoBadge = `
+        <div class="tipo-badge ${order.tipo === 'LLEVAR' ? 'llevar' : 'local'}">
+            <span>${tipoIcon}</span>
+            <span>${tipoText}</span>
+        </div>
+    `;
+    
     card.innerHTML = `
         ${fichaDisplay}
         <div class="postit-header">
@@ -512,6 +530,7 @@ function createOrderCard(order, colorClass, isNew = false) {
                 <span class="elapsed ${isUrgent ? 'urgent' : ''}">${elapsedTime.text}</span>
             </div>
         </div>
+        ${tipoBadge}
         ${clienteDisplay}
         <div class="postit-items">
             ${order.items.map(item => `
@@ -707,6 +726,85 @@ function updateDateTime() {
     };
     const el = document.getElementById('datetime');
     if (el) el.textContent = now.toLocaleDateString('es-BO', options);
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PANEL DE RESUMEN DE PREPARACIÓN
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let summaryCollapsed = false;
+
+/**
+ * Alterna el panel de resumen (colapsar/expandir)
+ */
+function toggleSummaryPanel() {
+    const content = document.getElementById('summaryContent');
+    const toggle = document.getElementById('summaryToggle');
+    summaryCollapsed = !summaryCollapsed;
+    
+    if (summaryCollapsed) {
+        content.style.display = 'none';
+        toggle.textContent = '▶';
+    } else {
+        content.style.display = 'block';
+        toggle.textContent = '▼';
+    }
+}
+
+/**
+ * Actualiza el panel de resumen con el total de items a preparar
+ * @param {Array} orders - Lista de pedidos activos
+ */
+function updateSummaryPanel(orders) {
+    const panel = document.getElementById('summaryPanel');
+    const itemsContainer = document.getElementById('summaryItems');
+    
+    if (!panel || !itemsContainer) return;
+    
+    // Si no hay pedidos, ocultar panel
+    if (!orders || orders.length === 0) {
+        panel.style.display = 'none';
+        return;
+    }
+    
+    panel.style.display = 'block';
+    
+    // Sumar todos los items de todos los pedidos
+    const itemsSummary = {};
+    
+    orders.forEach(order => {
+        if (order.items && Array.isArray(order.items)) {
+            order.items.forEach(item => {
+                const key = item.nombre + (item.acompañamiento ? ` (${item.acompañamiento})` : '');
+                if (!itemsSummary[key]) {
+                    itemsSummary[key] = {
+                        nombre: item.nombre,
+                        acompañamiento: item.acompañamiento || null,
+                        cantidad: 0
+                    };
+                }
+                itemsSummary[key].cantidad += item.cantidad;
+            });
+        }
+    });
+    
+    // Convertir a array y ordenar por cantidad (mayor a menor)
+    const sortedItems = Object.values(itemsSummary).sort((a, b) => b.cantidad - a.cantidad);
+    
+    // Generar HTML
+    if (sortedItems.length === 0) {
+        itemsContainer.innerHTML = '<div class="summary-empty">No hay items</div>';
+        return;
+    }
+    
+    itemsContainer.innerHTML = sortedItems.map(item => `
+        <div class="summary-item">
+            <span class="summary-qty">${item.cantidad}x</span>
+            <span class="summary-name">${item.nombre}</span>
+            ${item.acompañamiento ? `<span class="summary-side">(${item.acompañamiento})</span>` : ''}
+        </div>
+    `).join('');
 }
 
 
