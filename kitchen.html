@@ -76,6 +76,22 @@
         <p>Para ver los pedidos de cocina, conecta tu cuenta de Google primero.</p>
     </div>
 
+    <!-- ==================== PANEL DE RESUMEN DE PREPARACIÓN ==================== -->
+    <div class="summary-panel" id="summaryPanel">
+        <div class="summary-header" onclick="toggleSummaryPanel()">
+            <div class="summary-title">
+                <span class="summary-icon">📊</span>
+                <span>PREPARAR EN TOTAL</span>
+            </div>
+            <span class="summary-toggle" id="summaryToggle">▼</span>
+        </div>
+        <div class="summary-content" id="summaryContent">
+            <div class="summary-items" id="summaryItems">
+                <!-- Items se generan dinámicamente -->
+            </div>
+        </div>
+    </div>
+
     <!-- Grid de pedidos (Post-its) -->
     <div class="orders-grid" id="ordersGrid"></div>
 
