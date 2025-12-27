@@ -801,8 +801,10 @@ function updateSummaryPanel(orders) {
     itemsContainer.innerHTML = sortedItems.map(item => `
         <div class="summary-item">
             <span class="summary-qty">${item.cantidad}x</span>
-            <span class="summary-name">${item.nombre}</span>
-            ${item.acompañamiento ? `<span class="summary-side">(${item.acompañamiento})</span>` : ''}
+            <div class="summary-info">
+                <span class="summary-name">${item.nombre}</span>
+                ${item.acompañamiento ? `<span class="summary-side">con ${item.acompañamiento}</span>` : ''}
+            </div>
         </div>
     `).join('');
 }
