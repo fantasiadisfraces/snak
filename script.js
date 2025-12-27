@@ -1424,7 +1424,8 @@ async function confirmPayment() {
     const clienteInput = document.getElementById('clienteName');
     const orderTypeInput = document.getElementById('orderType');
     const ficha = fichaInput ? fichaInput.value.trim() : '';
-    const cliente = clienteInput ? clienteInput.value.trim() : '';
+    // Convertir nombre a MAYÚSCULAS siempre
+    const cliente = clienteInput ? clienteInput.value.trim().toUpperCase() : '';
     const tipo = orderTypeInput ? orderTypeInput.value : 'LOCAL';
     
     closePaymentModal();
