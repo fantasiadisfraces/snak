@@ -327,6 +327,22 @@
             </div>
         </div>
 
+        <!-- NUEVO: Selector LOCAL / LLEVAR -->
+        <div class="order-type-section">
+            <label class="order-type-label">¿Dónde consume?</label>
+            <div class="order-type-buttons">
+                <button type="button" class="order-type-btn local active" id="btnLocal" onclick="setOrderType('LOCAL')">
+                    <span class="type-icon">🍽️</span>
+                    <span class="type-text">EN LOCAL</span>
+                </button>
+                <button type="button" class="order-type-btn llevar" id="btnLlevar" onclick="setOrderType('LLEVAR')">
+                    <span class="type-icon">🛍️</span>
+                    <span class="type-text">PARA LLEVAR</span>
+                </button>
+            </div>
+            <input type="hidden" id="orderType" value="LOCAL">
+        </div>
+
         <div class="payment-total">
             <span class="label">Total a Cobrar</span>
             <span class="amount" id="paymentTotal">Bs. 0.00</span>
