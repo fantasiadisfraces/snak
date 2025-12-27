@@ -1334,6 +1334,9 @@ function showPaymentModal() {
     if (fichaInput) fichaInput.value = '';
     if (clienteInput) clienteInput.value = '';
     
+    // Resetear tipo de orden a LOCAL por defecto
+    setOrderType('LOCAL');
+    
     document.getElementById('paymentModal').classList.add('active');
 
     // Enfocar el campo de ficha primero (más importante para el flujo)
@@ -1345,6 +1348,26 @@ function showPaymentModal() {
             document.getElementById('amountReceived').focus();
         }
     }, 100);
+}
+
+/**
+ * Establece el tipo de orden (LOCAL o LLEVAR)
+ * @param {string} type - 'LOCAL' o 'LLEVAR'
+ */
+function setOrderType(type) {
+    const btnLocal = document.getElementById('btnLocal');
+    const btnLlevar = document.getElementById('btnLlevar');
+    const orderTypeInput = document.getElementById('orderType');
+    
+    if (type === 'LOCAL') {
+        btnLocal.classList.add('active');
+        btnLlevar.classList.remove('active');
+    } else {
+        btnLocal.classList.remove('active');
+        btnLlevar.classList.add('active');
+    }
+    
+    if (orderTypeInput) orderTypeInput.value = type;
 }
 
 /**
@@ -1399,15 +1422,17 @@ async function confirmPayment() {
     // Obtener ficha y nombre del cliente ANTES de cerrar el modal
     const fichaInput = document.getElementById('fichaNumber');
     const clienteInput = document.getElementById('clienteName');
+    const orderTypeInput = document.getElementById('orderType');
     const ficha = fichaInput ? fichaInput.value.trim() : '';
     const cliente = clienteInput ? clienteInput.value.trim() : '';
+    const tipo = orderTypeInput ? orderTypeInput.value : 'LOCAL';
     
     closePaymentModal();
 
     const total = calculateTotal();
     const now = new Date();
 
-    // Crear objeto de venta (ahora incluye ficha y cliente)
+    // Crear objeto de venta (ahora incluye ficha, cliente y tipo)
     const sale = {
         orderNumber: orderNumber,
         items: cart.slice(),
@@ -1418,7 +1443,8 @@ async function confirmPayment() {
         time: now.toLocaleTimeString('es-BO'),
         timestamp: now.toISOString(),  // Para control de turnos
         ficha: ficha,                   // Número de ficha
-        cliente: cliente                // Nombre del cliente
+        cliente: cliente,               // Nombre del cliente
+        tipo: tipo                      // LOCAL o LLEVAR
     };
 
     // Guardar en historial local
@@ -2293,10 +2319,10 @@ async function sendToKitchen(sale) {
         
         const itemsJSON = JSON.stringify(itemsForKitchen);
         
-        // Guardar en la hoja de cocina (ahora con 9 columnas: A-I)
+        // Guardar en la hoja de cocina (10 columnas: A-J)
         await gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId: SPREADSHEET_ID,
-            range: SHEETS.PEDIDOS_COCINA + '!A:I',
+            range: SHEETS.PEDIDOS_COCINA + '!A:J',
             valueInputOption: 'RAW',
             insertDataOption: 'INSERT_ROWS',
             resource: {
@@ -2309,12 +2335,13 @@ async function sendToKitchen(sale) {
                     sale.timestamp,             // F: Timestamp para ordenar
                     emailUsuario || 'caja',     // G: Usuario que tomó el pedido
                     sale.ficha || '',           // H: Número de ficha
-                    sale.cliente || ''          // I: Nombre del cliente
+                    sale.cliente || '',         // I: Nombre del cliente
+                    sale.tipo || 'LOCAL'        // J: Tipo (LOCAL/LLEVAR)
                 ]]
             }
         });
         
-        console.log('🍳 Pedido #' + sale.orderNumber + ' enviado a cocina (Ficha: ' + (sale.ficha || 'N/A') + ')');
+        console.log('🍳 Pedido #' + sale.orderNumber + ' enviado a cocina (Ficha: ' + (sale.ficha || 'N/A') + ', Tipo: ' + sale.tipo + ')');
         return true;
         
     } catch (error) {
